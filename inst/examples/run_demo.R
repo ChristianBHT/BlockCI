@@ -1,0 +1,15 @@
+library(CausalBlocks)
+set.seed(1)
+
+cat("== Setting A: same samples, different variables ==\n")
+a <- sim_multiview(n = 500)
+estA <- discover_multiview(a$blocks)
+cat("True block graph:\n"); print(a$truth); cat("Estimated:\n"); print(estA)
+print(round(evaluate_graph(estA, a$truth), 2))
+
+cat("\n== Setting B: same variables, different samples (environments) ==\n")
+b <- sim_environments(n_env = 4, n = 300, p = 5)
+estB <- discover_environments(b$blocks)
+cat("Intervened variables:", b$intervened, "\nTrue:\n"); print(b$truth)
+cat("Estimated parents (ICP):\n"); print(estB)
+print(round(evaluate_graph(estB, b$truth), 2))

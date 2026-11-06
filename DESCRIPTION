@@ -1,0 +1,22 @@
+Package: CausalBlocks
+Type: Package
+Title: Causal Discovery Between Blocks of Data
+Version: 0.0.0.9000
+Authors@R: person("Christian", "Thorjussen", email = "christianbern@gmail.com", role = c("aut", "cre"))
+Description: Causal discovery between blocks of data, where blocks are matrices
+    measured on the same samples (different variables) or on the same variables
+    (different samples, e.g. environments). Includes simulators with known
+    ground truth, baseline discovery methods, and a computational conditional
+    independence test based on sequential orthogonal PLS (SO-PLS) with rotation
+    or permutation resampling, modelled on the CCI package.
+License: GPL (>= 3)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Imports:
+    multiblock,
+    stats,
+    utils
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.1

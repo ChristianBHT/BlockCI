@@ -1,0 +1,6 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.Rhistory$
+^LOG\.md$
+^Causal Discovery Matrices\.tex$
+^inst/benchmarks$

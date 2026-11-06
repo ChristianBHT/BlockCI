@@ -1,0 +1,243 @@
+% Compile with XeLaTeX or LuaLaTeX.
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=25mm]{geometry}
+\usepackage{fontspec}
+\setmainfont{Latin Modern Roman}
+\usepackage{amsmath,amssymb}
+\usepackage{longtable,array}
+\usepackage{fancyvrb}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\setlist{itemsep=4pt,topsep=6pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setcounter{secnumdepth}{0}
+\title{Causal Discovery between blocks of data}
+\author{Christian Thorjussen}
+\date{\today}
+\begin{document}
+	\maketitle
+	
+	
+	\emph{Research memo — extending the CCI framework (Thorjussen, NMBU PhD thesis 2026) with SO-PLS (Næs et al.) to test conditional independence between data blocks, plus an assessment of a block-level CRT-CCI variant.}
+	
+	
+	\section{0. The ask, restated}
+	
+	You want to test statements of the form
+	
+	\[
+	X_A \perp X_B \mid X_C
+	\]
+	
+	where \(X_A\), \(X_B\), \(X_C\) are \textbf{blocks} (matrices of possibly many, possibly collinear columns — spectra, multi-omics panels, sensor batteries, questionnaire batteries) rather than single variables, and where the blocks typically sit in a path diagram/DAG as in the SO-PLS-PM literature. Two concrete goals:
+	
+	\begin{enumerate}
+		\item Build a computational conditional-independence test between blocks by combining SO-PLS with the CCI machinery (permutation + Monte Carlo cross-validation, MCCV).
+		\item Work out whether a CRT (conditional randomization test) version of this — "CRT-CCI" — is worth building for blocks, the way you sketched it for scalars in Section 6.3 of the thesis.
+		
+	\end{enumerate}
+	Below is a full proposal for (1), a worked-out design for (2) with an honest verdict on whether it's worth doing first, and a validation plan. I did a quick literature pass first (summarized in \S{}4) so the novelty claims aren't just asserted.
+	
+	
+	\section{1. Why this combination makes sense}
+	
+	Your own framing of CCI's motivation and SO-PLS's motivation are, structurally, the same problem stated twice:
+	
+	\begin{itemize}
+		\item \textbf{CCI} exists because classical CI tests (partial correlation, kernel methods like KCI/GCM) either assume restrictive parametric forms, or become statistically fragile / computationally infeasible under high dimensionality, collinearity, and mixed data types. CCI's fix: replace "model the joint distribution" with "compare out-of-sample predictive performance of a flexible learner, with vs. without X," validated by MCCV, with permutation used only to build a comparable null (not to model X's distribution).
+		\item \textbf{SO-PLS} exists because classical multiblock regression (and PLS-PM/LISREL-style SEM) breaks down when blocks are high-dimensional, multicollinear, and of different rank/dimensionality (NIR spectra next to three process-setting variables, say). SO-PLS's fix: sequential PLS fitting with orthogonalization, which handles exactly this regime and stays invariant to relative block scaling.
+		
+	\end{itemize}
+	So SO-PLS is, in effect, \emph{already the CCI "learner" you'd want for block data} — it's the flexible, robust-to-collinearity, robust-to-dimensionality predictive engine, the same role RF/XGBoost play for single variables in the current CCI package. The novel step is wiring it into CCI's permutation-MCCV comparison logic to get a \textbf{calibrated p-value} instead of the point-estimate "additional effect" / bootstrap significance that SO-PLS-PM currently reports.
+	
+	This also closes a gap you flagged yourself: Section 6.2 of the thesis ("Causal discovery") sketches using CCI to test candidate edges in a discovered skeleton, but says nothing about blocks. SO-PLS-PM already has the topological-order/DAG machinery (Næs et al. 2020) built for exactly this — order of blocks, transitive closure/reduction, direct/indirect/additional effects. SO-PLS-CCI is the natural marriage: use SO-PLS-PM's block ordering to decide what's "already in the model" (Z) and what's being tested (X), and use CCI's testing logic to decide whether it belongs there.
+	
+	
+	\section{2. Method 1 — SO-PLS-CCI (a.k.a. Block-CCI)}
+	
+	\subsection{2.1 Null hypothesis and its (honest) scope}
+	
+	Exactly as CCI operationalizes \texttt{Y \(\perp\) X | Z} as \texttt{E[Y|X,Z] = E[Y|Z]} (a testable necessary condition, not the full CI statement — flagged explicitly in your thesis, eq. 3 of Section 6.1), the block version operationalizes:
+	
+	\[
+	H_0:\quad \mathbb{E}[X_A\mid X_B,X_C]=\mathbb{E}[X_A\mid X_C]
+	\]
+	
+	as a stand-in for \texttt{\(X_A\) \(\perp\) \(X_B\) | \(X_C\)}. This is a \textbf{conditional-mean / explained-variance} statement, evaluated over the whole block \(X_A\) (all its columns jointly, via the SO-PLS multivariate Y). It will catch any dependence that shows up in how \(X_B\) shifts the conditional mean structure of \(X_A\) given \(X_C\) — which, given PLS's covariance-maximizing construction, is exactly the kind of dependence SO-PLS is built to detect. It will \emph{not} catch pure higher-moment dependence (\(X_B\) affecting the conditional covariance/shape of \(X_A\) without touching its mean) — see \S{}2.6 for the distributional extension, the direct block analogue of your CQCI idea.
+	
+	\subsection{2.2 The test statistic: SO-PLS's own "additional effect," made out-of-sample and permutation-calibrated}
+	
+	Næs et al. (2020) already define exactly the quantity you want, in population terms (their eq. 8):
+	
+	\[
+	\operatorname{additional}_{X_B}=\operatorname{tr}\!\left(F^{\mathsf T}(X_B^{\mathrm{orthA}})^{\mathsf T}X_B^{\mathrm{orthA}}F\right)
+	\]
+	
+	— the variance in \(X_A\)/\(X_C\)'s residual explained by \(X_B\) once orthogonalized against \(X_C\). In practice (their \S{}5.7) this is estimated by cross-validated explained variance and given a significance via bootstrap (or via CV-ANOVA's paired T-test on cross-validated residuals, per Næs/Indahl 1998 and the multiblock correlation paper). That's the piece CCI's logic upgrades.
+	
+	\textbf{Step 1 — fit two nested SO-PLS models, out-of-sample, on the same MCCV split:}
+	
+	\begin{itemize}
+		\item Model 0 (conditioning only): SO-PLS regression of \(X_A\) on \(X_C\) alone. Predict held-out \(X_A\); record a performance metric M0 (e.g. cross-validated RMSEP summed/averaged over \(X_A\)'s columns, or explained variance = 1 -- SSE/SST).
+		\item Model 1 (conditioning + candidate): SO-PLS regression of \(X_A\) on (\(X_C\), \(X_B\)), fitted in that order (\(X_C\) first, \(X_B\) orthogonalized against it — this \emph{is} the SO-PLS sequential step, no extra machinery needed). Predict held-out \(X_A\); record M1.
+		
+	\end{itemize}
+	\textbf{Step 2 — observed statistic:}
+	
+	\[
+	T_{\mathrm{obs}}=M_1-M_0
+	\]
+	(If M is explained variance; flip sign/direction if M is a loss like RMSEP.)
+	
+	This is your out-of-sample, MCCV-estimated version of the "additional effect" of block B.
+	
+	\textbf{Step 3 — null distribution by permutation, reusing CCI's exchangeability fix:}
+	
+	Permute the \emph{rows} of block \(X_B\) (as a whole matrix — permute rows jointly across all its columns, preserving \(X_B\)'s internal column-covariance structure, only destroying its alignment with \(X_A\) and \(X_C\)). This is the direct block-level generalization of "permute X" in Algorithm 1: it breaks the \(X_B\)–\(X_A\) bond and the \(X_B\)–\(X_C\) bond together (global permutation), which — exactly as in your thesis's exchangeability argument — does \emph{not} violate the population identity E[\(X_A\)|\(X_B\),\(X_C\)] = E[\(X_A\)|\(X_C\)] under H0, so the same logic that makes CCI valid carries over unchanged. Repeat R times, each time recomputing Model 1 with the permuted \(X_B\)* in place of \(X_B\) (Model 0 doesn't change — it doesn't touch \(X_B\)), on the same MCCV structure.
+	
+	\textbf{Step 4 — p-value:}
+	
+	\[
+	p=\frac{1+\#\{r:T^{(r)}\geq T_{\mathrm{obs}}\}}{R+1}
+	\]
+	
+	This is Algorithm 1 of your thesis verbatim, with the generic learner A \(\rightarrow\) SO-PLS, and (Y, X, Z) \(\rightarrow\) (\(X_A\), \(X_B\), \(X_C\)) as matrices. Formally:
+	
+	\begin{Verbatim}[fontsize=\scriptsize]
+		Algorithm: SO-PLS-CCI for H0: X_A independent of X_B | X_C
+		Require: blocks X_A (target), X_B (candidate), X_C (conditioning, possibly several
+		blocks X_C1,...,X_Cm — SO-PLS handles multiple input blocks natively);
+		MCCV splits R_split; train fraction rho; SO-PLS component-selection rule
+		(CV within each split, or fixed upper bound); performance functional M
+		1. Split D into D_train/D_test with fraction rho (repeat for MCCV instances as in
+		Algorithm 1; can nest with the permutation loop as in Algorithm 1, or fix the
+		split and only permute, mirroring the thesis's simplest form)
+		2. Fit SO-PLS(X_A ~ X_C) on D_train -> f0 ; M0 = M(f0; D_test)
+		3. Fit SO-PLS(X_A ~ X_C, X_B) on D_train (X_C then X_B, sequential/orthogonalized)
+		-> f1 ; M1 = M(f1; D_test)
+		4. T_obs = M1 - M0
+		5. for r = 1..R:
+		X_B*(r) = RowPermute(X_B)
+		Fit SO-PLS(X_A ~ X_C, X_B*(r)) on D_train -> f1*(r); M1*(r) = M(f1*(r); D_test)
+		T(r) = M1*(r) - M0
+		6. p = (1 + #{r: T(r) >= T_obs}) / (R+1)
+	\end{Verbatim}
+	
+	\subsection{2.3 Choice of performance functional M}
+	
+	Two reasonable defaults, worth implementing both and letting the user pick (mirrors the RF/XGBoost/SVM/KNN choice already in the CCI package):
+	
+	\begin{itemize}
+		\item \textbf{RMSEP-sum / explained-variance} (native to SO-PLS, matches Måge-plot model selection): sum or mean of per-column cross-validated RMSEP over \(X_A\)'s columns, or the aggregate explained-variance formula (eq. 2 in Næs et al.). Pro: literally what SO-PLS already reports, zero new machinery, directly comparable to existing SO-PLS-PM output. Con: sensitive to relative scaling across \(X_A\)'s columns unless you standardize \(X_A\) columns first (worth doing, or use the block-relative-variance form already in eq. 2).
+		\item \textbf{Partial RV / RV-coefficient of predicted vs. observed \(X_A\)}: instead of a residual-sum metric, use RV(predicted \(X_A\), observed \(X_A\)) or a partial-RV-flavoured statistic. This connects directly to Næs et al. \S{}6.6 ("relation to partial RV") and to Aben et al.'s iTOP, and is scale-invariant across columns by construction (no standardization decision needed). The literature check (\S{}4) found permutation testing of the \emph{plain} RV coefficient is established (Josse, Pagès \& Husson 2008) but a \emph{partial}-RV permutation test controlling for a third block is not — so this variant of the statistic is itself a small additional contribution, not just an implementation detail.
+		
+	\end{itemize}
+	Recommendation: ship RMSEP/explained-variance first (reuses SO-PLS's existing CV infrastructure directly, easiest to validate against the CV-ANOVA baseline), add RV/partial-RV as a second statistic once the basic method is validated.
+	
+	\subsection{2.4 Directionality — the block analogue of \texttt{CCI.direction()}}
+	
+	Conditional independence is symmetric (\texttt{\(X_A\) \(\perp\) \(X_B\) | \(X_C\) \(\Longleftrightarrow\) \(X_B\) \(\perp\) \(X_A\) | \(X_C\)}), but the mean-based test statistic is not: predicting a 300-variable spectral block from a 3-variable process-setting block behaves very differently, power-wise, than the reverse. This asymmetry is already a known issue for scalar CCI (hence \texttt{CCI.direction()} picking the more predictable target automatically). For blocks it will be \emph{more} pronounced, since block dimensionality and rank differ far more than single-variable "predictability" typically does — exactly the invariance-to-dimensionality property SO-PLS was built to exploit for modeling, but it doesn't remove the asymmetry for testing power.
+	
+	Practical recommendation: run both directions (\(X_A\) as target / \(X_B\) as target) by default when the DAG doesn't already dictate a direction, report both p-values, and — like \texttt{CCI.direction()} — optionally auto-select the direction with the larger block as the target (more information to explain, typically better-behaved residuals) or the one indicated by the topological order already assumed in the path diagram. When a path diagram is already posited (the normal SO-PLS-PM use case), the direction is usually \emph{given} — \(X_A\) is the "more downstream" block in the topological order — so this degrees-of-freedom problem mostly disappears in the path-modeling use case, and only matters for the causal-discovery use case (\S{}2.5).
+	
+	\subsection{2.5 Fit into the SO-PLS-PM workflow — this is the headline use case}
+	
+	This is where the combination earns its keep beyond "a fancier significance test." The existing SO-PLS-PM two-step procedure (Næs et al. \S{}3.2) is:
+	
+	\begin{itemize}
+		\item \textbf{Step 1}: for each endogenous block, fit SO-PLS using all blocks with a reachable path to it as input, in topological order; report additional/total effects (point estimates, bootstrap CIs).
+		\item \textbf{Step 2}: split total effects into direct/indirect using the orthogonalization trick.
+		
+	\end{itemize}
+	SO-PLS-CCI slots in as a \textbf{third step (or a replacement for the bootstrap-significance part of Step 1/2)}: for every block pair with a hypothesized edge (or every candidate edge under consideration, including ones from the transitive closure not in the original diagram — exactly the "checking for new or unnecessary paths" idea in Næs et al. \S{}6.2), get a calibrated, exchangeability-robust p-value instead of (or alongside) a bootstrap CI. Concretely this gives you:
+	
+	\begin{itemize}
+		\item A \textbf{DAG-validation tool for block SCMs}: analogous to how the thesis uses scalar CCI/GCM to test the implied CI statements of a scalar SCM (grain example, Table showing 11 CI statements to check), you'd now test the block-level CI statements implied by a hypothesized block DAG — directly useful if your applied work (or a future article) posits a DAG over, say, spectroscopy blocks, formulation/process blocks, and quality-outcome blocks.
+		\item A genuine \textbf{block causal-discovery step}: run a fast block-level skeleton search (e.g., pairwise partial-RV screening) to propose candidate edges, then use SO-PLS-CCI to test/prune them with proper Type-I control — the block-level version of what Section 6.2 sketches for scalars, and something the literature check did not find already published.
+		\item A more defensible replacement for the CV-ANOVA paired-T-test currently used for block significance (Indahl 1998; used throughout the Næs multiblock papers): your thesis already shows, for the scalar case, that permutation/MCCV-based CCI beats asymptotic/T-test-style approaches on Type-I error control in the regimes that matter (small-to-moderate n, non-Gaussian, heteroskedastic). There's a reasonable prior that the same will hold for CV-ANOVA at the block level, but this needs to be checked, not assumed (see \S{}5).
+		
+	\end{itemize}
+	\subsection{2.6 Distributional extension — "Block-CQCI"}
+	
+	Direct analogue of your CQCI idea (Section 6.1): if you suspect \(X_B\) affects the \emph{shape} of \(X_A\)'s conditional distribution (heteroskedasticity, tail dependence) rather than its mean, per-column quantile regression forests don't obviously generalize to a matrix target the way SO-PLS's mean model does. Two options worth a line each, not a full design here: (a) run the univariate CQCI column-by-column on \(X_A\) and aggregate (multiple-testing corrected, or a global test via the min p-value / Fisher's combination, as you already do across quantiles in Table 2/3 of the thesis) — cheap, ignores between-column dependence in \(X_A\); (b) use SO-PLS's own scores (\(T_A\), low-dimensional) as the target for a QRF-based CQCI, testing whether the \emph{distribution} of the latent block score depends on \(X_B\) given \(X_C\) — cheaper, but conflates "does B affect A's shape" with "does B affect A's shape \emph{in the directions PLS already found interesting for the mean}," a real limitation worth flagging rather than hiding. Worth a short methods note later; not a blocker for the main SO-PLS-CCI contribution.
+	
+	
+	\section{3. Method 2 — is Block-CRT-CCI worth building?}
+	
+	\subsection{3.1 What it would look like}
+	
+	Your univariate CRT-CCI (Algorithm 2) replaces "permute X" with "sample X* from an estimated P(X|Z)," fixing the theoretical objection that permutation breaks both the X–Y and X–Z bonds. For blocks, the natural estimator for P(\(X_B\) | \(X_C\)) is sitting right there in the SO-PLS fit you already need for \S{}2's test:
+	
+	\begin{enumerate}
+		\item Fit PLS2 (or the SO-PLS step) of \(X_B\) on \(X_C\): get scores \(T_C\), loadings/regression giving fitted values \(\widehat{X}_B\) = \(T_C\) \(\widehat{Q}\), and residual matrix E = \(X_B\) -- \(\widehat{X}_B\).
+		\item Generate \(X_B\)\emph{ = \(\widehat{X}_B\) + E}, where E\emph{ is drawn by \textbf{row-wise bootstrap of the residual matrix E} (resample residual }rows* with replacement, or a residual permutation, preserving each row's cross-column residual correlation structure) — a nonparametric residual-bootstrap generator — or, parametrically, by drawing from a multivariate Gaussian fit to E's row covariance.
+		\item Plug \(X_B\)*(b) into the same MCCV/SO-PLS testing structure as Algorithm 2, replacing the permutation step.
+		
+	\end{enumerate}
+	This is genuinely low-cost to implement: unlike the scalar case, where you needed a \emph{new} tool (QRF as a generic conditional-distribution estimator) to make CRT practical, the block case gets its generator \textbf{for free} from the same PLS2 fit used for prediction — scores, loadings, and residuals are already sitting there. That's a nice asymmetry in your favor relative to the scalar problem.
+	
+	\subsection{3.2 Why it's still second-priority, not co-equal}
+	
+	The catch is the one you already flagged for the scalar case, just sharper here: \textbf{CRT validity is entirely contingent on P(\(X_B\)|\(X_C\)) being correctly specified.} The residual-bootstrap generator above is implicitly a low-rank-plus-noise (PLS) model for \(X_B\)|\(X_C\) — linear in the PLS latent space, homoskedastic-row-residual by default. If the true \(X_B\)|\(X_C\) relationship is nonlinear, or has row-dependent (heteroskedastic) residual structure, or has residual columns not well captured by a single shared covariance, the generator is misspecified and the resulting p-values are not reliable — the exact failure mode the CRT/knockoffs literature (Candès et al. 2018; Berrett et al.) warns about, and the reason the literature check (\S{}4) found matrix-valued CRT essentially absent from the literature: nobody has a generic, trustworthy way to sample a whole correlated matrix block conditionally, at scale, without strong structural assumptions.
+	
+	Compare to permutation-based SO-PLS-CCI (\S{}2): it needs \textbf{no generative model at all} — the same property that makes scalar CCI robust is inherited unchanged. So the honest cost/benefit is:
+	
+	\begingroup\small\setlength{\tabcolsep}{5pt}
+	\begin{longtable}{@{}p{0.28\linewidth}p{0.28\linewidth}p{0.37\linewidth}@{}}\toprule
+		& SO-PLS-CCI (permutation) & Block-CRT-CCI (PLS-residual-bootstrap) \\
+		\midrule\endhead
+		Needs a conditional generator for \(X_B\)|\(X_C\)? & No & Yes (assumes PLS/low-rank-linear form) \\
+		Validity depends on nuisance-model correctness? & No (same exchangeability argument as scalar CCI) & Yes \\
+		New machinery required beyond what's already built? & None — direct Algorithm 1 port & Residual bootstrap scheme; some design choices (row-wise vs. parametric) \\
+		Where it clearly helps over the permutation version & — & Cases where global row-permutation of \(X_B\) is a poor null because \(X_B\)'s marginal distribution is very different from its conditional-on-\(X_C\) distribution (skewed/structured blocks, small n) — the same motivating case as the scalar thesis's Section 6.3 \\
+		\bottomrule\end{longtable}
+	\endgroup
+	
+	\textbf{Verdict: build SO-PLS-CCI first, as the primary contribution — it's simpler, needs no extra assumptions, ports your existing theory directly, and is the more clearly novel, defensible result for a first article.} Treat Block-CRT-CCI as a well-motivated \emph{second} contribution (or Article 2 / package extension), explicitly framed as "worthwhile precisely because the generator is nearly free given SO-PLS's own decomposition, but only reliable under the same linearity assumptions SO-PLS itself relies on for prediction" — which is an honest, defensible scope statement, not a weakness to hide. It's a good "further work" section for the block paper, mirroring how CRT-CCI sits in Section 6.3 of your thesis relative to the main Article 1 contribution.
+	
+	
+	\section{4. Where this sits relative to existing methods (quick lit check)}
+	
+	I ran a targeted search before writing this up, specifically to check I'm not proposing something that already exists:
+	
+	\begin{itemize}
+		\item \textbf{Partial RV coefficient}: the formula is established (used descriptively in Aben et al. 2018's iTOP for block causal-topology inference, and discussed in Næs et al. \S{}6.6), and permutation testing of the \emph{plain} RV coefficient is established (Josse, Pagès \& Husson 2008, \emph{CSDA}; surveyed in Josse \& Holmes 2016, \emph{Statistics Surveys}). A dedicated \textbf{permutation test for the partial RV coefficient conditioning on a third block} does not appear to exist as a published, rigorous test — real estate for the RV-statistic variant of \S{}2.3.
+		\item \textbf{Conditional distance correlation} (Wang, Pan, Hu, Tian \& Zhang 2015, \emph{JASA}; R package \texttt{cdcsis}) is the closest existing "block-CI test" — it handles matrix-valued X, Y, Z via a kernel/local-bootstrap conditional independence test. It's a legitimate benchmark to run SO-PLS-CCI against in simulations (see \S{}5): distance-correlation-based tests are known to struggle computationally and statistically as block dimensionality grows and blocks get collinear — exactly the regime SO-PLS-CCI targets, so a head-to-head comparison (Type-I error and power vs. n, vs. block width, vs. collinearity) is a strong, concrete result for a paper.
+		\item \textbf{CV-ANOVA / bootstrap significance in SO-PLS-PM} (Indahl 1998; used throughout Næs et al.'s papers) is the direct predecessor SO-PLS-CCI upgrades — not competing prior art so much as the baseline to beat on Type-I error control, the same role GCM/KCI play as baselines in your thesis.
+		\item \textbf{Matrix-valued CRT}: nothing found. The closest adjacent work (normalizing-flow-based CRT/knockoffs, e.g. Hansen et al. 2022) explicitly treats multivariate X as a set of scalar sub-problems rather than solving the joint matrix case — so \S{}3's PLS-residual-bootstrap generator is, as far as I can tell, a genuinely new proposal, not a re-derivation.
+		
+	\end{itemize}
+	(This was a fast, non-exhaustive pass — worth a proper systematic search before submission, but enough to tell me the core idea isn't already scooped.)
+	
+	
+	\section{5. Suggested validation plan}
+	
+	Mirrors the structure you already used for the scalar thesis (Section 4.2's simulated-data framework, and the SO-PLS paper's own simulated path-diagram example, Fig. 8):
+	
+	\begin{enumerate}
+		\item \textbf{Type-I error simulation}: generate blocks from a DAG where \(X_A\) \(\perp\) \(X_B\) | \(X_C\) holds exactly (shared latent generator, as in the SO-PLS paper's simulated example — components of \(X_C\) generated first, then \(X_A\) and \(X_B\) as linear/nonlinear functions of \(X_C\)'s latent components plus independent noise, with no direct \(X_A\)–\(X_B\) link). Vary: n, number of variables per block, degree of within-block collinearity (loading structure), noise type (Gaussian, heteroskedastic, non-Gaussian), and number of PLS components needed per block. Check nominal-level Type-I control for SO-PLS-CCI, CV-ANOVA/bootstrap (baseline), and conditional distance correlation (\texttt{cdcsis}, baseline).
+		\item \textbf{Power simulation}: same setup, but add a direct \(X_A\)–\(X_B\) effect of controlled strength (through a specific number of latent PLS components — this lets you specifically test the "different components for prediction vs. to-be-predicted" scenario Næs et al. flag in their \S{}6.3/Fig. 7, which should be a sweet spot showcasing SO-PLS-CCI's advantage over generic multivariate tests that don't exploit block low-rank structure).
+		\item \textbf{Scaling check}: computational cost and power/Type-I behavior as block width grows (e.g., 10 \(\rightarrow\) 100 \(\rightarrow\) 1000 columns per block) and n shrinks relative to block width — the regime where \texttt{cdcsis}/kernel methods are expected to degrade and SO-PLS-CCI is expected to hold up, per the same logic that motivates CCI/SO-PLS individually.
+		\item \textbf{Real-data illustration}: you already have two natural candidates in the uploaded material — the Gouda cheese process-monitoring data (Næs et al. \S{}8: raw milk / starter culture / process settings / online measurements / end quality, with a genuinely nonunique topological order to explore) and, from your own thesis, the broiler production data (if a multiblock version — e.g., day-old-chicken block, daily-production block, feed block, condemnation block — is assembled, this doubles as a natural bridge to your existing empirical chapter). Either works as the applied section of a first article.
+		
+	\end{enumerate}
+	
+	\section{6. Software implications}
+	
+	If/when you want to build this: the cleanest path is a new "learner" backend in the \texttt{CCI} package (alongside RF/XGBoost/SVM/KNN) that wraps an SO-PLS fit (R has \texttt{pls} for PLS2 and the block orchestration is not large to write from scratch, or reuse Næs/Liland's own SO-PLS implementations if available) — most of \texttt{CCI.test()}'s existing scaffolding (MCCV loop, permutation loop, p-value/QQ machinery) is agnostic to the learner and should port with modest changes, mainly around (a) accepting block-structured input instead of a flat X, (b) the block-permutation step (row-permute a whole block, not a column), and (c) the performance functional operating on a multivariate residual/prediction rather than a scalar one. This is consistent with your package's stated design goal of being "development friendly" for exactly this kind of extension.
+	
+	
+	\section{7. Where I'd suggest starting}
+	
+	Concretely, in priority order:
+	
+	\begin{enumerate}
+		\item Implement \S{}2's SO-PLS-CCI algorithm for the two-block-plus-conditioning-set case (\(X_A\) \(\perp\) \(X_B\) | \(X_C\), single \(X_C\) block) with the RMSEP/explained-variance statistic — this is a direct, low-risk port of Algorithm 1.
+		\item Run the Type-I error simulation (\S{}5.1) against CV-ANOVA and \texttt{cdcsis} — this is the number that tells you whether the idea actually works before investing further.
+		\item If (2) looks good: extend to multi-block conditioning sets (\(X_C\) = several blocks, natively supported by SO-PLS's sequential fitting), add the RV/partial-RV statistic variant, and write up as Article 4 / a standalone chemometrics-facing paper (Journal of Chemometrics is an obvious venue given the SO-PLS lineage).
+		\item Treat Block-CRT-CCI (\S{}3) as a follow-on: worth a design note and maybe a proof-of-concept simulation now, but not worth blocking the main contribution on.
+		
+	\end{enumerate}
+	Happy to turn any of this into runnable R code (a prototype SO-PLS-CCI function, or the Type-I error simulation harness) next — say which piece you want first.
+\end{document}
