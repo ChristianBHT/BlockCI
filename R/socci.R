@@ -74,19 +74,19 @@ rmsep <- function(y, yhat) sqrt(mean((y - yhat)^2))
 #' @return named vector `M0, M1, T = M1 - M0, a, b` (RMSEP metric)
 #' @export
 sopls_test_gen <- function(Y, X, V = NULL, p = 0.5, ncomp = "auto", scale = TRUE,
-                           max_ncomp = c(10, 5), cv_segments = 5) {
-  n <- nrow(Y); 
-  tr <- sample.int(n, floor(p * n)); 
-  te <- setdiff(seq_len(n), tr)
-  mu <- colMeans(Y[tr, , drop = FALSE]); 
-  sdv <- if (scale) apply(Y[tr, , drop = FALSE], 2, sd) else rep(1, ncol(Y))
+                           max_ncomp = c(6, 10), cv_segments = 3) {
+  n <- nrow(Y) 
+  train <- sample.int(n, floor(p * n)) 
+  test <- setdiff(seq_len(n), train)
+  mu <- colMeans(Y[train, , drop = FALSE]); 
+  sdv <- if (scale) apply(Y[train, , drop = FALSE], 2, sd) else rep(1, ncol(Y))
   sdv[sdv == 0] <- 1
   Ys <- sweep(sweep(Y, 2, mu), 2, sdv, "/")
   auto <- identical(ncomp, "auto"); 
-  lim <- length(tr) - 2
+  lim <- length(train) - 2
   if (is.null(V)) {   # unconditional test: M0 = training-mean predictor
     nb <- min(if (auto) max_ncomp[2] else ncomp[2], ncol(X), lim)
-    dtr <- list(Y = Ys[tr, , drop = FALSE], X = X[tr, , drop = FALSE])
+    dtr <- list(Y = Ys[train, , drop = FALSE], X = X[train, , drop = FALSE])
     fit <- multiblock::sopls(Y ~ X, ncomp = nb, data = dtr, scale = scale, progress = FALSE,
                              validation = if (auto) "CV" else "none", segments = cv_segments)
     if (auto) { 
@@ -94,29 +94,50 @@ sopls_test_gen <- function(Y, X, V = NULL, p = 0.5, ncomp = "auto", scale = TRUE
       nb <- as.integer(sub(".*,", "", names(cvr)[which.min(cvr)])) 
       }
     
-    M0 <- rmsep(Ys[te, ], 0)
+    M0 <- rmsep(Ys[test, ], 0)
     if (nb == 0) M1 <- M0 else {
-      pr <- predict(fit, newdata = list(Y = Ys[te, , drop = FALSE], X = X[te, , drop = FALSE]), ncomp = nb)
-      M1 <- rmsep(Ys[te, ], pr[, , dim(pr)[3]])
+      pr <- predict(fit, newdata = list(Y = Ys[test, , drop = FALSE], X = X[test, , drop = FALSE]), ncomp = nb)
+      M1 <- rmsep(Ys[test, ], pr[, , dim(pr)[3]])
     }
     na <- 0
   } else {
-    na <- min(if (auto) max_ncomp[1] else ncomp[1], ncol(V), lim)
-    nb <- min(if (auto) max_ncomp[2] else ncomp[2], ncol(X), lim)
-    dtr <- list(Y = Ys[tr, , drop = FALSE], V = V[tr, , drop = FALSE], X = X[tr, , drop = FALSE])
-    dte <- list(Y = Ys[te, , drop = FALSE], V = V[te, , drop = FALSE], X = X[te, , drop = FALSE])
-    fit <- multiblock::sopls(Y ~ V + X, ncomp = c(na, nb), data = dtr, scale = scale, progress = FALSE,
-                             validation = if (auto) "CV" else "none", segments = cv_segments)
+    # V may be one matrix or a list of blocks; each V block gets ONE component
+    # (ncomp = "auto") or the number given in ncomp = c(a_1, ..., a_k, b).
+    Vl <- if (is.list(V)) V else list(V)
+    k <- length(Vl)
+
+    vn <- paste0("V", seq_len(k))
     if (auto) {
-      cvr <- fit$validation$RMSECV; nm <- names(cvr)
-      ab <- do.call(rbind, lapply(strsplit(nm, ","), as.integer))
-      v_only <- which(ab[, 2] == 0 & ab[, 1] >= 1); na <- ab[v_only[which.min(cvr[v_only])], 1]
-      cand <- which(ab[, 1] == na); nb <- ab[cand[which.min(cvr[cand])], 2]
+      av <- rep(1L, k)
+      nb <- max_ncomp[2]
+    } else {
+      if (length(ncomp) != k + 1) stop("ncomp must have length (number of V blocks) + 1")
+      av <- ncomp[seq_len(k)]
+      nb <- ncomp[k + 1]
     }
-    pr <- predict(fit, newdata = dte, ncomp = c(na, nb))
+    av <- pmin(av, vapply(Vl, ncol, 1L), lim)
+    nb <- min(nb, ncol(X), lim)
+    dtr <- c(list(Y = Ys[train, , drop = FALSE]),
+             setNames(lapply(Vl, function(m) m[train, , drop = FALSE]), vn),
+             list(X = X[train, , drop = FALSE]))
+    dte <- c(list(Y = Ys[test, , drop = FALSE]),
+             setNames(lapply(Vl, function(m) m[test, , drop = FALSE]), vn),
+             list(X = X[test, , drop = FALSE]))
+    fml <- stats::as.formula(paste("Y ~", paste(c(vn, "X"), collapse = " + ")))
+    fit <- multiblock::sopls(fml, ncomp = c(av, nb), data = dtr, scale = scale, progress = FALSE,
+                             validation = if (auto) "CV" else "none", segments = cv_segments)
+    if (auto) {   # V components fixed; choose b by inner CV
+      cvr <- fit$validation$RMSECV
+      ab <- do.call(rbind, lapply(strsplit(names(cvr), ","), as.integer))
+      cand <- which(rowSums(abs(ab[, seq_len(k), drop = FALSE] -
+                                matrix(av, nrow(ab), k, byrow = TRUE))) == 0)
+      nb <- ab[cand[which.min(cvr[cand])], k + 1]
+    }
+    pr <- predict(fit, newdata = dte, ncomp = c(av, nb))
     cn <- dimnames(pr)[[3]]
-    M0 <- rmsep(Ys[te, ], pr[, , which(cn == paste(na, 0, sep = ","))])
-    M1 <- rmsep(Ys[te, ], pr[, , which(cn == paste(na, nb, sep = ","))])
+    M0 <- rmsep(Ys[test, ], pr[, , which(cn == paste(c(av, 0), collapse = ","))])
+    M1 <- rmsep(Ys[test, ], pr[, , which(cn == paste(c(av, nb), collapse = ","))])
+    na <- sum(av)
   }
   c(M0 = M0, M1 = M1, T = M1 - M0, a = na, b = nb)
 }
@@ -140,8 +161,9 @@ sopls_perm_test <- function(Y, X, V = NULL, nperm = 160, method = c("rotation", 
   method <- match.arg(method)
   if (progress) pb <- txtProgressBar(0, nperm, style = 3)
   T0 <- numeric(nperm)
+  Vm <- if (is.list(V)) do.call(cbind, V) else V   # rotation adjusts for all of V
   for (r in seq_len(nperm)) {
-    Xs <- if (method == "rotation") rotate_X(X, V) else permute_X(X)
+    Xs <- if (method == "rotation") rotate_X(X, Vm) else permute_X(X)
     T0[r] <- sopls_test_gen(Y, Xs, V, p, ncomp, scale, max_ncomp, cv_segments)[["T"]]
     if (progress) setTxtProgressBar(pb, r)
   }
@@ -163,7 +185,9 @@ sopls_perm_test <- function(Y, X, V = NULL, nperm = 160, method = c("rotation", 
 #' @param data named list of matrices (or a data.frame)
 #' @param p training fraction of each MCCV split
 #' @param nperm number of null samples R
-#' @param ncomp `"auto"` (inner CV) or `c(components on V, components added from X)`
+#' @param ncomp `"auto"` (one component per V block, number of X components chosen
+#'   by inner CV) or `c(a_1, ..., a_k, b)`: components for each of the k V blocks,
+#'   then components added from X
 #' @param method `"rotation"` (default) or `"permutation"` resampling of X
 #' @param scale scale the blocks
 #' @param max_ncomp,cv_segments settings for `ncomp = "auto"`
@@ -178,11 +202,13 @@ SOPLS.CCI.test <- function(formula, data, p = 0.5, nperm = 160, ncomp = "auto",
   method <- match.arg(method)
   if (!is.na(seed)) set.seed(seed)
   f <- .parse_cci_formula(formula)
-  Y <- .get_block(f$y, data); X <- .get_block(f$x, data); V <- .get_block(f$v, data)
-  ok <- complete.cases(cbind(Y, X, V)); 
-  Y <- Y[ok, , drop = FALSE]; 
+  Y <- .get_block(f$y, data); X <- .get_block(f$x, data)
+  # each name after "|" is its own V block (one latent variable per block)
+  V <- if (length(f$v) == 0) NULL else lapply(f$v, .get_block, data = data)
+  ok <- complete.cases(cbind(Y, X, if (!is.null(V)) do.call(cbind, V)))
+  Y <- Y[ok, , drop = FALSE]
   X <- X[ok, , drop = FALSE]
-  if (!is.null(V)) V <- V[ok, , drop = FALSE]
+  if (!is.null(V)) V <- lapply(V, function(m) m[ok, , drop = FALSE])
   obs <- sopls_test_gen(Y, X, V, p, ncomp, scale, max_ncomp, cv_segments)
   T0 <- sopls_perm_test(Y, X, V, nperm, method, p, ncomp, scale, max_ncomp, cv_segments, progress)
   pval <- (sum(T0 <= obs[["T"]]) + 1) / (nperm + 1)   # RMSEP is a loss: small T = evidence against H0
@@ -208,3 +234,4 @@ print.SOPLSCCI <- function(x, ...) {
   cat(sprintf("p-value = %.4f (share of T* <= T_obs)\n", x$p.value))
   invisible(x)
 }
+
