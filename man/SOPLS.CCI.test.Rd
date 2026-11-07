@@ -15,6 +15,7 @@ SOPLS.CCI.test(
   scale = TRUE,
   max_ncomp = c(10, 5),
   cv_segments = 5,
+  pvalue = c("empirical", "parametric"),
   seed = NA,
   progress = TRUE
 )
@@ -31,13 +32,21 @@ SOPLS.CCI.test(
 
 \item{nperm}{number of null samples R}
 
-\item{ncomp}{\code{"auto"} (inner CV) or \verb{c(components on V, components added from X)}}
+\item{ncomp}{\code{"auto"} (one component per V block, number of X components chosen
+by inner CV) or \code{c(a_1, ..., a_k, b)}: components for each of the k V blocks,
+then components added from X}
 
 \item{method}{\code{"rotation"} (default) or \code{"permutation"} resampling of X}
 
 \item{scale}{scale the blocks}
 
 \item{max_ncomp, cv_segments}{settings for \code{ncomp = "auto"}}
+
+\item{pvalue}{\code{"empirical"} (default): \verb{(#\{T* <= T_obs\} + 1) / (R + 1)}.
+\code{"parametric"}: assumes the null distribution is normal with the mean and sd
+of the R null statistics and returns \code{pnorm(T_obs, mean, sd)}. This is not
+limited to a resolution of \code{1/(R + 1)}, but relies on the normal assumption.
+Both p-values are stored in the result as \code{p.empirical} and \code{p.parametric}.}
 
 \item{seed}{optional random seed}
 

@@ -11,8 +11,10 @@ sopls_test_gen(
   p = 0.5,
   ncomp = "auto",
   scale = TRUE,
-  max_ncomp = c(10, 5),
-  cv_segments = 5
+  max_ncomp = c(6, 10),
+  cv_segments = 3,
+  split = NULL,
+  losses = FALSE
 )
 }
 \arguments{

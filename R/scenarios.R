@@ -8,72 +8,95 @@
   S + matrix(noise(nrow(F) * p), nrow(F), p) * noise_sd
 }
 
-lap <- function(m) { u <- stats::runif(m) - 0.5; -sign(u) * log(1 - 2 * abs(u)) }
+# Laplace noise
+.lap <- function(m) { u <- stats::runif(m) - 0.5; -sign(u) * log(1 - 2 * abs(u)) }
 
+#' Simulated blocks for testing conditional independence
+#'
+#' Generators of four blocks `Y`, `X`, `Z1`, `Z2`. In every generator `Y` is
+#' independent of `X` given `(Z1, Z2)` by construction, because `X` and `Y` are
+#' generated from the observed `Z` blocks plus independent noise.
+#'
+#' * `sim_simple()`: `Z1`, `Z2` independent Gaussian; `X` and `Y` are linear in
+#'   `(Z1, Z2)` plus noise.
+#' * `sim_1()`: common causes, linear Gaussian (`Z1`, `Z2` from latent factors).
+#' * `sim_2()`: chain `X <- Z1 -> Z2 -> Y`.
+#' * `sim_3()`: `X` is almost a linear function of `Z` (noise sd 0.1, collinear).
+#' * `sim_4()`: nonlinear signal, Laplace noise and heteroskedastic noise. The
+#'   linear SO-PLS test is known to reject this null too often.
+#' * `sim_h0_scenario()`: calls `sim_1()` to `sim_4()` by number.
+#'
+#' @param n number of samples
+#' @param p number of variables: a single number for `sim_simple()` (same for all
+#'   blocks), otherwise a named vector `c(Y =, X =, Z1 =, Z2 =)`
+#' @param scenario scenario number 1 to 4 (`sim_h0_scenario()` only)
+#' @return named list of matrices `Y`, `X`, `Z1`, `Z2` with `n` rows
+#' @examples
+#' d <- sim_simple(n = 200)
+#' sapply(d, dim)
+#' @export
 sim_simple <- function(n = 500, p = 4) {
-  Z1 <- matrix(rnorm(n * p), n, p)
-  Z2 <- matrix(rnorm(n * p), n, p)
+  Z1 <- matrix(stats::rnorm(n * p), n, p)
+  Z2 <- matrix(stats::rnorm(n * p), n, p)
   Z  <- cbind(Z1, Z2)
-  X  <- Z %*% matrix(rnorm(2 * p * p), 2 * p, p) + matrix(rnorm(n * p), n, p)
-  Y  <- Z %*% matrix(rnorm(2 * p * p), 2 * p, p) + matrix(rnorm(n * p), n, p)
+  X  <- Z %*% matrix(stats::rnorm(2 * p * p), 2 * p, p) + matrix(stats::rnorm(n * p), n, p)
+  Y  <- Z %*% matrix(stats::rnorm(2 * p * p), 2 * p, p) + matrix(stats::rnorm(n * p), n, p)
   list(Y = Y, X = X, Z1 = Z1, Z2 = Z2)
 }
 
-
+#' @rdname sim_simple
+#' @export
 sim_1 <- function(n = 500, p = c(Y = 4, X = 4, Z1 = 5, Z2 = 5)) {
-  f1 <- matrix(stats::rnorm(n * 2), n) 
+  f1 <- matrix(stats::rnorm(n * 2), n)
   f2 <- matrix(stats::rnorm(n * 2), n)
-  Z1 <- .mix(f1, p[["Z1"]], 0.5) 
+  Z1 <- .mix(f1, p[["Z1"]], 0.5)
   Z2 <- .mix(f2, p[["Z2"]], 0.5)
   Z <- cbind(Z1, Z2)
-  X <- .mix(Z, p[["X"]], 0.7) 
+  X <- .mix(Z, p[["X"]], 0.7)
   Y <- .mix(Z, p[["Y"]], 0.7)
-  return(list(Y = Y, X = X, Z1 = Z1, Z2 = Z2))
-  } 
-  
+  list(Y = Y, X = X, Z1 = Z1, Z2 = Z2)
+}
+
+#' @rdname sim_simple
+#' @export
 sim_2 <- function(n = 500, p = c(Y = 4, X = 4, Z1 = 5, Z2 = 5)) {
-    Z1 <- .mix(f1, p[["Z1"]], 0.5)
-    Z2 <- .mix(cbind(Z1, f2), p[["Z2"]], 0.5)           # Z1 -> Z2
-    X <- .mix(Z1, p[["X"]], 0.7) 
-    Y <- .mix(Z2, p[["Y"]], 0.7)
-    return(list(Y = Y, X = X, Z1 = Z1, Z2 = Z2))
-  } 
-
-sim_3 <- function(){
-    Z1 <- .mix(f1, p[["Z1"]], 0.3) 
-    Z2 <- .mix(f2, p[["Z2"]], 0.3)
-    Z <- cbind(Z1, Z2)
-    X <- .mix(Z, p[["X"]], 0.1)
-    Y <- .mix(Z, p[["Y"]], 0.7)
-    return(list(Y = Y, X = X, Z1 = Z1, Z2 = Z2))
-} 
-
-
-sim_4 <- function(n = 500, p = c(Y = 4, X = 4, Z1 = 5, Z2 = 5)){
-  f1 <- matrix(stats::rnorm(n * 2), n) 
+  f1 <- matrix(stats::rnorm(n * 2), n)
   f2 <- matrix(stats::rnorm(n * 2), n)
-  lap <- function(m) { 
-      u <- stats::runif(m) - 0.5 - sign(u) * log(1 - 2 * abs(u)) 
-      }
-  Z1 <- .mix(f1, p[["Z1"]], 0.5, lap) 
-  Z2 <- .mix(f2, p[["Z2"]], 0.5, lap)
+  Z1 <- .mix(f1, p[["Z1"]], 0.5)
+  Z2 <- .mix(cbind(Z1, f2), p[["Z2"]], 0.5)           # Z1 -> Z2
+  X <- .mix(Z1, p[["X"]], 0.7)
+  Y <- .mix(Z2, p[["Y"]], 0.7)
+  list(Y = Y, X = X, Z1 = Z1, Z2 = Z2)
+}
+
+#' @rdname sim_simple
+#' @export
+sim_3 <- function(n = 500, p = c(Y = 4, X = 4, Z1 = 5, Z2 = 5)) {
+  f1 <- matrix(stats::rnorm(n * 2), n)
+  f2 <- matrix(stats::rnorm(n * 2), n)
+  Z1 <- .mix(f1, p[["Z1"]], 0.3)
+  Z2 <- .mix(f2, p[["Z2"]], 0.3)
+  Z <- cbind(Z1, Z2)
+  X <- .mix(Z, p[["X"]], 0.1)                         # X almost a function of Z
+  Y <- .mix(Z, p[["Y"]], 0.7)
+  list(Y = Y, X = X, Z1 = Z1, Z2 = Z2)
+}
+
+#' @rdname sim_simple
+#' @export
+sim_4 <- function(n = 500, p = c(Y = 4, X = 4, Z1 = 5, Z2 = 5)) {
+  f1 <- matrix(stats::rnorm(n * 2), n)
+  f2 <- matrix(stats::rnorm(n * 2), n)
+  Z1 <- .mix(f1, p[["Z1"]], 0.5, .lap)
+  Z2 <- .mix(f2, p[["Z2"]], 0.5, .lap)
   Z <- scale(cbind(Z1, Z2))
-  W <- matrix(stats::rnorm(ncol(Z) * 3), ncol(Z), 3) 
+  W <- matrix(stats::rnorm(ncol(Z) * 3), ncol(Z), 3)
   W <- sweep(W, 2, sqrt(colSums(W^2)), "/")
   u <- Z %*% W
   g <- cbind(tanh(u[, 1]) + u[, 2]^2 / 2, u[, 1] * u[, 3], tanh(u[, 3]) - u[, 2]^2 / 2)
   het <- sqrt(0.3 + 0.5 * abs(u[, 1]))                # noise scale depends on Z
-  X <- .mix(g, p[["X"]], 0.6, lap) * het
-  Y <- .mix(g[, 3:1], p[["Y"]], 0.6, lap) * het
-  return(list(Y = Y, X = X, Z1 = Z1, Z2 = Z2))
-  }
+  X <- .mix(g, p[["X"]], 0.6, .lap) * het
+  Y <- .mix(g[, 3:1], p[["Y"]], 0.6, .lap) * het
+  list(Y = Y, X = X, Z1 = Z1, Z2 = Z2)
+}
 
-  
-  
-  
-  
-  
-  
-  
-  
-  

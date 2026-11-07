@@ -74,9 +74,10 @@ rmsep <- function(y, yhat) sqrt(mean((y - yhat)^2))
 #' @return named vector `M0, M1, T = M1 - M0, a, b` (RMSEP metric)
 #' @export
 sopls_test_gen <- function(Y, X, V = NULL, p = 0.5, ncomp = "auto", scale = TRUE,
-                           max_ncomp = c(6, 10), cv_segments = 3) {
-  n <- nrow(Y) 
-  train <- sample.int(n, floor(p * n)) 
+                           max_ncomp = c(6, 10), cv_segments = 3,
+                           split = NULL, losses = FALSE) {
+  n <- nrow(Y)
+  train <- if (is.null(split)) sample.int(n, floor(p * n)) else split
   test <- setdiff(seq_len(n), train)
   mu <- colMeans(Y[train, , drop = FALSE]); 
   sdv <- if (scale) apply(Y[train, , drop = FALSE], 2, sd) else rep(1, ncol(Y))
@@ -95,9 +96,11 @@ sopls_test_gen <- function(Y, X, V = NULL, p = 0.5, ncomp = "auto", scale = TRUE
       }
     
     M0 <- rmsep(Ys[test, ], 0)
-    if (nb == 0) M1 <- M0 else {
+    l0 <- rowSums(Ys[test, , drop = FALSE]^2)
+    if (nb == 0) { M1 <- M0; l1 <- l0 } else {
       pr <- predict(fit, newdata = list(Y = Ys[test, , drop = FALSE], X = X[test, , drop = FALSE]), ncomp = nb)
       M1 <- rmsep(Ys[test, ], pr[, , dim(pr)[3]])
+      l1 <- rowSums((Ys[test, , drop = FALSE] - matrix(pr[, , dim(pr)[3]], length(test)))^2)
     }
     na <- 0
   } else {
@@ -135,11 +138,18 @@ sopls_test_gen <- function(Y, X, V = NULL, p = 0.5, ncomp = "auto", scale = TRUE
     }
     pr <- predict(fit, newdata = dte, ncomp = c(av, nb))
     cn <- dimnames(pr)[[3]]
-    M0 <- rmsep(Ys[test, ], pr[, , which(cn == paste(c(av, 0), collapse = ","))])
-    M1 <- rmsep(Ys[test, ], pr[, , which(cn == paste(c(av, nb), collapse = ","))])
+    yh0 <- pr[, , which(cn == paste(c(av, 0), collapse = ","))]
+    yh1 <- pr[, , which(cn == paste(c(av, nb), collapse = ","))]
+    M0 <- rmsep(Ys[test, ], yh0)
+    M1 <- rmsep(Ys[test, ], yh1)
+    l0 <- rowSums((Ys[test, , drop = FALSE] - matrix(yh0, length(test)))^2)
+    l1 <- rowSums((Ys[test, , drop = FALSE] - matrix(yh1, length(test)))^2)
     na <- sum(av)
   }
-  c(M0 = M0, M1 = M1, T = M1 - M0, a = na, b = nb)
+  out <- c(M0 = M0, M1 = M1, T = M1 - M0, a = na, b = nb)
+  if (!losses) return(out)
+  # per-test-row squared errors (summed over Y columns) for the V-only and V + X models
+  list(stats = out, test = test, l0 = l0, l1 = l1)
 }
 
 # ---- null distribution (perm.test analogue) --------------------------------
@@ -173,6 +183,13 @@ sopls_perm_test <- function(Y, X, V = NULL, nperm = 160, method = c("rotation", 
 
 # ---- user interface (CCI.test analogue) ------------------------------------
 
+# Left-tail p-value assuming a normal null with the sample mean and sd of T0
+.parametric_p <- function(Tobs, T0) {
+  s <- stats::sd(T0)
+  if (!is.finite(s) || s == 0) return(NA_real_)
+  stats::pnorm(Tobs, mean = mean(T0), sd = s)
+}
+
 #' SO-PLS Computational Conditional Independence test
 #'
 #' Tests Y independent of X given V using sequential orthogonal PLS: the test
@@ -191,6 +208,11 @@ sopls_perm_test <- function(Y, X, V = NULL, nperm = 160, method = c("rotation", 
 #' @param method `"rotation"` (default) or `"permutation"` resampling of X
 #' @param scale scale the blocks
 #' @param max_ncomp,cv_segments settings for `ncomp = "auto"`
+#' @param pvalue `"empirical"` (default): `(#{T* <= T_obs} + 1) / (R + 1)`.
+#'   `"parametric"`: assumes the null distribution is normal with the mean and sd
+#'   of the R null statistics and returns `pnorm(T_obs, mean, sd)`. This is not
+#'   limited to a resolution of `1/(R + 1)`, but relies on the normal assumption.
+#'   Both p-values are stored in the result as `p.empirical` and `p.parametric`.
 #' @param seed optional random seed
 #' @param progress show a progress bar
 #' @return object of class `c("SOPLSCCI", "htest")`
@@ -198,8 +220,10 @@ sopls_perm_test <- function(Y, X, V = NULL, nperm = 160, method = c("rotation", 
 SOPLS.CCI.test <- function(formula, data, p = 0.5, nperm = 160, ncomp = "auto",
                            method = c("rotation", "permutation"), scale = TRUE,
                            max_ncomp = c(10, 5), cv_segments = 5,
+                           pvalue = c("empirical", "parametric"),
                            seed = NA, progress = TRUE) {
   method <- match.arg(method)
+  pvalue <- match.arg(pvalue)
   if (!is.na(seed)) set.seed(seed)
   f <- .parse_cci_formula(formula)
   Y <- .get_block(f$y, data); X <- .get_block(f$x, data)
@@ -211,8 +235,12 @@ SOPLS.CCI.test <- function(formula, data, p = 0.5, nperm = 160, ncomp = "auto",
   if (!is.null(V)) V <- lapply(V, function(m) m[ok, , drop = FALSE])
   obs <- sopls_test_gen(Y, X, V, p, ncomp, scale, max_ncomp, cv_segments)
   T0 <- sopls_perm_test(Y, X, V, nperm, method, p, ncomp, scale, max_ncomp, cv_segments, progress)
-  pval <- (sum(T0 <= obs[["T"]]) + 1) / (nperm + 1)   # RMSEP is a loss: small T = evidence against H0
+  # RMSEP is a loss: small T = evidence against H0 (left tail)
+  p_emp <- (sum(T0 <= obs[["T"]]) + 1) / (nperm + 1)
+  p_par <- .parametric_p(obs[["T"]], T0)
+  pval <- if (pvalue == "parametric") p_par else p_emp
   structure(list(statistic = c(T = obs[["T"]]), p.value = pval, M0 = obs[["M0"]], M1 = obs[["M1"]],
+                 pvalue = pvalue, p.empirical = p_emp, p.parametric = p_par,
                  null.distribution = T0, method = method, nperm = nperm, ncomp = ncomp,
                  ncomp_selected = c(V = obs[["a"]], X = obs[["b"]]), p = p,
                  formula = formula, tail = "left"),
@@ -231,7 +259,12 @@ print.SOPLSCCI <- function(x, ...) {
       "| ncomp =", paste(x$ncomp, collapse = ","),
       "(observed split uses V,X =", paste(x$ncomp_selected, collapse = ","), ")\n")
   cat(sprintf("RMSEP given V: %.4f   after adding X: %.4f   T = M1 - M0 = %.4f\n", x$M0, x$M1, x$statistic))
-  cat(sprintf("p-value = %.4f (share of T* <= T_obs)\n", x$p.value))
+  if (identical(x$pvalue, "parametric")) {
+    cat(sprintf("p-value = %.4f (parametric: normal null, mean %.4f, sd %.4f; empirical %.4f)\n",
+                x$p.value, mean(x$null.distribution), stats::sd(x$null.distribution), x$p.empirical))
+  } else {
+    cat(sprintf("p-value = %.4f (share of T* <= T_obs; parametric %.4f)\n", x$p.value, x$p.parametric))
+  }
   invisible(x)
 }
 
