@@ -4,10 +4,12 @@ library(pbapply)
 
 # small tests
 data <- sim_1()
-test <- SOPLS.CCI.test(Y ~ X | Z1 + Z2, data = data)
-test
-test <- SOPLS.CCI.test(Y ~ X | Z1, data = data)
-test
+SOPLS.CCI.test(Y ~ X | Z1 + Z2, data = data)
+SOPLS.CCI.test(Y ~ X | Z1, data = data)
+pls_ci_test(Y ~ X | Z1 + Z2, data = data)
+pls_ci_test(Y ~ X | Z1, data = data)
+
+
 
 #simulation 1
 

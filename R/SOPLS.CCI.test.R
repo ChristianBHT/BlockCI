@@ -34,16 +34,10 @@ SOPLS.CCI.test <- function(formula, data, p = 0.75, nperm = 160, ncomp = "auto",
   method <- match.arg(method)
   pvalue <- match.arg(pvalue)
   if (!is.na(seed)) set.seed(seed)
-  f <- .parse_cci_formula(formula)
-  Y <- .get_block(f$y, data); X <- .get_block(f$x, data)
-  # each name after "|" is its own V block (one latent variable per block)
-  V <- if (length(f$v) == 0) NULL else lapply(f$v, .get_block, data = data)
-  ok <- complete.cases(cbind(Y, X, if (!is.null(V)) do.call(cbind, V)))
-  Y <- Y[ok, , drop = FALSE]
-  X <- X[ok, , drop = FALSE]
-  if (!is.null(V)) V <- lapply(V, function(m) m[ok, , drop = FALSE])
-  obs <- sopls_test_gen(Y, X, V, p, ncomp, scale, max_ncomp, cv_segments)
-  T0 <- sopls_perm_test(Y, X, V, nperm, method, p, ncomp, scale, max_ncomp, cv_segments, progress)
+  # each name after "|" is its own V block; incomplete rows are dropped identically
+  # for the observed statistic and the null draws (both use .canonical())
+  obs <- sopls_test_gen(formula, data, p, ncomp, scale, max_ncomp, cv_segments)
+  T0 <- sopls_perm_test(formula, data, nperm, method, p, ncomp, scale, max_ncomp, cv_segments, progress)
   # RMSEP is a loss: small T = evidence against H0 (left tail)
   p_emp <- (sum(T0 <= obs[["T"]]) + 1) / (nperm + 1)
   p_par <- .parametric_p(obs[["T"]], T0)

@@ -39,23 +39,18 @@ SOPLS.CCI.fast <- function(formula, data, p = 0.5, nsplit = 10, nrot = 1, ncomp 
   correction <- match.arg(correction)
   if (nsplit < 2) stop("nsplit must be at least 2")
   if (!is.na(seed)) set.seed(seed)
-  f <- .parse_cci_formula(formula)
-  Y <- .get_block(f$y, data); X <- .get_block(f$x, data)
-  V <- if (length(f$v) == 0) NULL else lapply(f$v, .get_block, data = data)
-  ok <- complete.cases(cbind(Y, X, if (!is.null(V)) do.call(cbind, V)))
-  Y <- Y[ok, , drop = FALSE]
-  X <- X[ok, , drop = FALSE]
-  if (!is.null(V)) V <- lapply(V, function(m) m[ok, , drop = FALSE])
-  Vm <- if (is.null(V)) NULL else do.call(cbind, V)
-  n <- nrow(Y); n_tr <- floor(p * n); n_te <- n - n_tr
-  
+  cc <- .canonical(formula, data)
+  Vm <- if (is.null(cc$V)) NULL else do.call(cbind, cc$V)
+  n <- nrow(cc$Y); n_tr <- floor(p * n); n_te <- n - n_tr
+
   per_split <- lapply(seq_len(nsplit), function(k) {
     split <- sample.int(n, n_tr)
-    obs <- sopls_test_gen(Y, X, V, p, ncomp, scale, max_ncomp, cv_segments,
+    obs <- sopls_test_gen(cc$formula, cc$data, p, ncomp, scale, max_ncomp, cv_segments,
                           split = split, losses = TRUE)
     rots <- lapply(seq_len(nrot), function(i) {
-      Xs <- if (method == "rotation") rotate_X(X, Vm) else permute_X(X)
-      sopls_test_gen(Y, Xs, V, p, ncomp, scale, max_ncomp, cv_segments,
+      dat <- cc$data
+      dat$X <- if (method == "rotation") rotate_X(cc$X, Vm) else permute_X(cc$X)
+      sopls_test_gen(cc$formula, dat, p, ncomp, scale, max_ncomp, cv_segments,
                      split = split, losses = TRUE)
     })
     dstar <- rowMeans(vapply(rots, function(r) r$l1 - r$l0, numeric(n_te)))

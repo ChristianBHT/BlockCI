@@ -22,6 +22,27 @@
   list(y = all.vars(formula[[2]]), x = xv, v = vv)
 }
 
+# Parse `formula` (Y ~ X | V1 + V2) and `data` once. Returns the blocks Y, X and
+# V (a list with one matrix per V block, or NULL) with incomplete rows removed, plus
+# a canonical `data` list (Y, X, V1, V2, ...) and matching `formula`
+# (Y ~ X | V1 + V2) in which X can be swapped for a resampled copy.
+.canonical <- function(formula, data) {
+  f <- .parse_cci_formula(formula)
+  missing_vars <- setdiff(c(f$y, f$x, f$v), names(data))
+  if (length(missing_vars)) stop("variables not found in data: ", paste(missing_vars, collapse = ", "))
+  Y <- .get_block(f$y, data)
+  X <- .get_block(f$x, data)
+  V <- if (length(f$v) == 0) NULL else lapply(f$v, .get_block, data = data)
+  ok <- stats::complete.cases(cbind(Y, X, if (!is.null(V)) do.call(cbind, V)))
+  Y <- Y[ok, , drop = FALSE]
+  X <- X[ok, , drop = FALSE]
+  if (!is.null(V)) V <- lapply(V, function(m) m[ok, , drop = FALSE])
+  vn <- if (is.null(V)) character(0) else paste0("V", seq_along(V))
+  dat <- c(list(Y = Y, X = X), if (!is.null(V)) stats::setNames(V, vn))
+  fml <- stats::as.formula(paste("Y ~ X", if (length(vn)) paste("|", paste(vn, collapse = " + "))))
+  list(Y = Y, X = X, V = V, data = dat, formula = fml)
+}
+
 #' Rotation-test resample of X given V (Langsrud-style)
 #'
 #' Splits X = fitted(X|V) + E. E (rank r) is replaced by E* = A* S B' where A* is a

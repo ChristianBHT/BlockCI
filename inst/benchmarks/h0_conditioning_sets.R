@@ -18,7 +18,8 @@ grid <- expand.grid(scenario = 1:4, cset = c("Z1,Z2", "Z1"), rep = seq_len(reps)
 one <- function(i) {
   g <- grid[i, ]
   set.seed(100000 + 100 * g$scenario + g$rep)        # same data for both conditioning sets
-  d <- CausalBlocks::sim_h0_scenario(g$scenario, n)
+  # benchmark scenarios 1-4 are sim_2 ... sim_5 (sim_1 is the simple generator)
+  d <- get(paste0("sim_", g$scenario + 1), envir = asNamespace("CausalBlocks"))(n)
   f <- if (g$cset == "Z1,Z2") Y ~ X | Z1 + Z2 else Y ~ X | Z1
   r <- CausalBlocks::SOPLS.CCI.test(f, d, nperm = nperm, method = "rotation", progress = FALSE)
   cbind(g, n = n, H0_true = g$cset == "Z1,Z2" || g$scenario == 2, p.value = r$p.value)

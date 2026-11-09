@@ -39,8 +39,8 @@ same structure as the CCI package.
 
 ## Examples
 
-The data generators are in `R/scenarios.R` (`?sim_simple`). The package needs the
-`multiblock` package:
+The data generators are in `R/scenarios.R` (`sim_1()` to `sim_5()` are exported). The
+package needs the `multiblock` package:
 
 ```r
 devtools::install()           # from the package folder, or devtools::load_all()
@@ -49,12 +49,12 @@ library(CausalBlocks)
 
 ### A simple null case
 
-`sim_simple()` makes four matrices Y, X, Z1 and Z2 where X and Y both depend on Z1
+`sim_1()` makes four matrices Y, X, Z1 and Z2 where X and Y both depend on Z1
 and Z2 and nothing else, so Y is independent of X given (Z1, Z2) but not given Z1 alone.
 
 ```r
 set.seed(1)
-data <- sim_simple(n = 500)     # list(Y, X, Z1, Z2), 4 variables per block
+data <- sim_1(n = 500, p = 4)   # list(Y, X, Z1, Z2), p variables per block
 
 # Y _||_ X | Z1, Z2 is true: we expect a large p-value
 res <- SOPLS.CCI.test(Y ~ X | Z1 + Z2, data, nperm = 99)
@@ -79,18 +79,19 @@ plot(res_par)                    # adds the fitted normal curve
 
 ### Scenario with mixed signals
 
-`sim_1()` generates blocks Y (4 variables), X (4), Z1 (5) and Z2 (5) from latent
+`sim_2()` generates blocks Y (4 variables), X (4), Z1 (5) and Z2 (5) from latent
 common causes. Y is independent of X given (Z1, Z2) by construction.
 
 ```r
-d1 <- sim_1(n = 500)
-SOPLS.CCI.test(Y ~ X | Z1 + Z2, d1, nperm = 99)   # null is true
-SOPLS.CCI.test(Y ~ X | Z1,      d1, nperm = 99)   # null is false
+d2 <- sim_2(n = 500)
+SOPLS.CCI.test(Y ~ X | Z1 + Z2, d2, nperm = 99)   # null is true
+SOPLS.CCI.test(Y ~ X | Z1,      d2, nperm = 99)   # null is false
 ```
 
-`sim_2()` (chain `X <- Z1 -> Z2 -> Y`), `sim_3()` (nearly collinear X) and `sim_4()`
-(nonlinear, heteroskedastic) work the same way. The nonlinear `sim_4()` is known to
+`sim_3()` (chain `X <- Z1 -> Z2 -> Y`), `sim_4()` (nearly collinear X) and `sim_5()`
+(nonlinear, heteroskedastic) work the same way. The nonlinear `sim_5()` is known to
 fail for the linear SO-PLS test: it rejects a true null too often (see `LOG.md`).
+`sim_6()` and `sim_7()` are still being worked on.
 
 ## Fast version
 

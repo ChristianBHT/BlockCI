@@ -35,6 +35,12 @@
   - Only n = 300 with V = Z1, Z2 and 60 sims checked; n = 1000, nrot > 1 and the H0 scenarios not run.
 - Package repair (README task): `R/scenarios.R` had undefined `f1`/`f2`/`p` in `sim_2`/`sim_3` and a broken local `lap` in `sim_4`; fixed, with `sim_simple`, `sim_1`-`sim_4` and `sim_h0_scenario` (wrapper used by the benchmark scripts) now documented and exported. `R/simulate.R` had been overwritten by a scratch simulation script, which broke package loading and removed `sim_multiview`/`sim_environments`; the scratch script is kept unchanged as `inst/benchmarks/simulation_study.R` and the two simulators were restored from the earlier version. Regenerated `NAMESPACE` and `man/` with roxygen2; installs into a temporary library and the 15 testthat expectations pass.
 
+## 2026-11-09
+- `sopls_test_gen()` now takes `formula` and `data` (as do `sopls_perm_test()`, `SOPLS.CCI.test()`, `SOPLS.CCI.fast()`). Parsing and removal of incomplete rows is done by a helper `.canonical()` in `R/utils.R`. Null draws replace only the X block.
+- Scenario generators renumbered by the author: `sim_1` = simple Gaussian (Z1, Z2 -> X, Y), `sim_2`-`sim_5` = the old benchmark scenarios 1-4 (common causes, chain, collinear X, nonlinear); `sim_6`, `sim_7` in progress. The old `sim_simple` and `sim_h0_scenario` no longer exist; the two `h0_*.R` benchmark scripts now call `sim_(scenario + 1)`. The results recorded earlier refer to the old numbering (benchmark scenario k = `sim_(k + 1)`).
+- Scratch script `R/simulation_study.R` (ran on package load and broke it) moved to `inst/benchmarks/simulation_study_parallel.R`. Regenerated `NAMESPACE` and `man/`; package installs and the 15 tests pass.
+- Type I error check of a latent-confounder design (`sim_5` in the console, X and Y driven by hidden Z_1, Z_2 seen only through noisy proxies): the null does not hold given the proxies (partial correlation 0.22), so rejections there are correct, not a failure of the test. A valid null needs X and Y to depend on Z only through the observed blocks.
+
 ## Next
 - Fast test: calibrate the variance between "none" and Nadeau-Bengio (or use more rotations/splits) and check it on the four H0 scenarios and n = 1000/2000.
 - Decide the default for V components (one per block vs CV), then run a type I / power study for it.

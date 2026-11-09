@@ -9,16 +9,18 @@
 #' @param progress show a progress bar
 #' @return numeric vector of `nperm` null statistics
 #' @export
-sopls_perm_test <- function(Y, X, V = NULL, nperm = 160, method = c("rotation", "permutation"),
+sopls_perm_test <- function(formula, data, nperm = 160, method = c("rotation", "permutation"),
                             p = 0.75, ncomp = "auto", scale = TRUE, max_ncomp = c(10, 5),
                             cv_segments = 5, progress = FALSE) {
   method <- match.arg(method)
   if (progress) pb <- txtProgressBar(0, nperm, style = 3)
+  cc <- .canonical(formula, data)
+  dat <- cc$data
   T0 <- numeric(nperm)
-  Vm <- if (is.list(V)) do.call(cbind, V) else V   # rotation adjusts for all of V
+  Vm <- if (is.null(cc$V)) NULL else do.call(cbind, cc$V)   # rotation adjusts for all of V
   for (r in seq_len(nperm)) {
-    Xs <- if (method == "rotation") rotate_X(X, Vm) else permute_X(X)
-    T0[r] <- sopls_test_gen(Y, Xs, V, p, ncomp, scale, max_ncomp, cv_segments)[["T"]]
+    dat$X <- if (method == "rotation") rotate_X(cc$X, Vm) else permute_X(cc$X)
+    T0[r] <- sopls_test_gen(cc$formula, dat, p, ncomp, scale, max_ncomp, cv_segments)[["T"]]
     if (progress) setTxtProgressBar(pb, r)
   }
   if (progress) close(pb)

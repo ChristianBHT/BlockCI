@@ -17,7 +17,8 @@ grid <- expand.grid(scenario = scen, n = ns, method = methods, rep = seq_len(rep
 grid <- grid[order(-grid$n), ]            # slowest jobs first for load balancing
 one <- function(i) {
   g <- grid[i, ]; set.seed(1000 * g$scenario + 10 * g$rep + match(g$n, ns))
-  d <- CausalBlocks::sim_h0_scenario(g$scenario, g$n)
+  # benchmark scenarios 1-4 are sim_2 ... sim_5 (sim_1 is the simple generator)
+  d <- get(paste0("sim_", g$scenario + 1), envir = asNamespace("CausalBlocks"))(g$n)
   t0 <- Sys.time()
   r <- CausalBlocks::SOPLS.CCI.test(Y ~ X | Z1 + Z2, d, nperm = nperm, method = g$method, progress = FALSE)
   cbind(g, p.value = r$p.value, a = r$ncomp_selected[["V"]], b = r$ncomp_selected[["X"]],

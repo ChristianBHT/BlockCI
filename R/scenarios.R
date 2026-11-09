@@ -11,6 +11,7 @@
 # Laplace noise
 .lap <- function(m) { u <- stats::runif(m) - 0.5; -sign(u) * log(1 - 2 * abs(u)) }
 
+#' @export
 sim_1 <- function(n = 500, p = 6) {
   Z1 <- matrix(stats::rnorm(n * p), n, p)
   Z2 <- matrix(stats::rnorm(n * p), n, p)
@@ -21,6 +22,7 @@ sim_1 <- function(n = 500, p = 6) {
   list(Y = Y, X = X, Z1 = Z1, Z2 = Z2)
 }
 
+#' @export
 sim_2 <- function(n = 500, p = c(Y = 4, X = 4, Z1 = 5, Z2 = 5)) {
   f1 <- matrix(stats::rnorm(n * 2), n)
   f2 <- matrix(stats::rnorm(n * 2), n)
@@ -32,6 +34,7 @@ sim_2 <- function(n = 500, p = c(Y = 4, X = 4, Z1 = 5, Z2 = 5)) {
   list(Y = Y, X = X, Z1 = Z1, Z2 = Z2)
 }
 
+#' @export
 sim_3 <- function(n = 500, p = c(Y = 4, X = 4, Z1 = 5, Z2 = 5)) {
   f1 <- matrix(stats::rnorm(n * 2), n)
   f2 <- matrix(stats::rnorm(n * 2), n)
@@ -42,6 +45,7 @@ sim_3 <- function(n = 500, p = c(Y = 4, X = 4, Z1 = 5, Z2 = 5)) {
   list(Y = Y, X = X, Z1 = Z1, Z2 = Z2)
 }
 
+#' @export
 sim_4 <- function(n = 500, p = c(Y = 4, X = 4, Z1 = 5, Z2 = 5)) {
   f1 <- matrix(stats::rnorm(n * 2), n)
   f2 <- matrix(stats::rnorm(n * 2), n)
@@ -54,6 +58,7 @@ sim_4 <- function(n = 500, p = c(Y = 4, X = 4, Z1 = 5, Z2 = 5)) {
 }
 
 
+#' @export
 sim_5 <- function(n = 500, p = c(Y = 4, X = 4, Z1 = 5, Z2 = 5)) {
   f1 <- matrix(stats::rnorm(n * 2), n)
   f2 <- matrix(stats::rnorm(n * 2), n)
