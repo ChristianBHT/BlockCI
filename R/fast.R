@@ -48,7 +48,7 @@ SOPLS.CCI.fast <- function(formula, data, p = 0.5, nsplit = 10, nrot = 1, ncomp 
   if (!is.null(V)) V <- lapply(V, function(m) m[ok, , drop = FALSE])
   Vm <- if (is.null(V)) NULL else do.call(cbind, V)
   n <- nrow(Y); n_tr <- floor(p * n); n_te <- n - n_tr
-
+  
   per_split <- lapply(seq_len(nsplit), function(k) {
     split <- sample.int(n, n_tr)
     obs <- sopls_test_gen(Y, X, V, p, ncomp, scale, max_ncomp, cv_segments,
