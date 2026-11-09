@@ -11,11 +11,14 @@ SOPLS.CCI.test(
   p = 0.75,
   nperm = 160,
   ncomp = "auto",
-  method = c("rotation", "permutation"),
+  method = c("rotation", "permutation", "conditional"),
   scale = TRUE,
   max_ncomp = c(10, 5),
   cv_segments = 5,
   pvalue = c("empirical", "parametric"),
+  learner = c("sopls", "xgboost"),
+  learner_args = list(),
+  group_size = 10,
   seed = NA,
   progress = TRUE
 )
@@ -36,7 +39,10 @@ SOPLS.CCI.test(
 by inner CV) or \code{c(a_1, ..., a_k, b)}: components for each of the k V blocks,
 then components added from X}
 
-\item{method}{\code{"rotation"} (default) or \code{"permutation"} resampling of X}
+\item{method}{resampling of X for the null distribution: \code{"rotation"} (default,
+linear adjustment for V), \code{"permutation"} (global row permutation) or
+\code{"conditional"} (permute rows of X within groups of rows with similar V, see
+\code{\link[=permute_X_cond]{permute_X_cond()}}; keeps nonlinear X-V dependence)}
 
 \item{scale}{scale the blocks}
 
@@ -47,6 +53,15 @@ then components added from X}
 of the R null statistics and returns \code{pnorm(T_obs, mean, sd)}. This is not
 limited to a resolution of \code{1/(R + 1)}, but relies on the normal assumption.
 Both p-values are stored in the result as \code{p.empirical} and \code{p.parametric}.}
+
+\item{learner}{regression used for M0 and M1: \code{"sopls"} (default) or
+\code{"xgboost"} (multi-target XGBoost, needs xgboost >= 2.0). See
+\code{\link[=sopls_test_gen]{sopls_test_gen()}}.}
+
+\item{learner_args}{named list of options for the learner (for \code{"xgboost"}:
+\code{nrounds}, \code{early_stopping_rounds}, \code{val_fraction}, \code{params})}
+
+\item{group_size}{rows per cluster for \code{method = "conditional"}}
 
 \item{seed}{optional random seed}
 

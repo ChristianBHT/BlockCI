@@ -19,6 +19,7 @@ Imports:
     utils,
     pls
 Suggests:
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    xgboost (>= 2.0.0)
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.1.1

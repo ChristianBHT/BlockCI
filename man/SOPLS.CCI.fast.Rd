@@ -12,11 +12,14 @@ SOPLS.CCI.fast(
   nsplit = 10,
   nrot = 1,
   ncomp = "auto",
-  method = c("rotation", "permutation"),
+  method = c("rotation", "permutation", "conditional"),
   scale = TRUE,
   max_ncomp = c(10, 5),
   cv_segments = 5,
   correction = c("nadeau-bengio", "none"),
+  learner = c("sopls", "xgboost"),
+  learner_args = list(),
+  group_size = 10,
   seed = NA
 )
 
@@ -38,7 +41,10 @@ SOPLS.CCI.fast(
 by inner CV) or \code{c(a_1, ..., a_k, b)}: components for each of the k V blocks,
 then components added from X}
 
-\item{method}{\code{"rotation"} (default) or \code{"permutation"} resampling of X}
+\item{method}{resampling of X for the null distribution: \code{"rotation"} (default,
+linear adjustment for V), \code{"permutation"} (global row permutation) or
+\code{"conditional"} (permute rows of X within groups of rows with similar V, see
+\code{\link[=permute_X_cond]{permute_X_cond()}}; keeps nonlinear X-V dependence)}
 
 \item{scale}{scale the blocks}
 
@@ -49,6 +55,11 @@ power) or \code{"none"}: plain t-test across the \code{nsplit} split statistics,
 variance \code{var(delta) / K}. Splits overlap, so \code{"none"} ignores their
 dependence and can be anti-conservative (about 8\% rejection at the nominal
 5\% level in a small simulation), but it has much more power.}
+
+\item{learner, learner_args}{regression used for the two models: \code{"sopls"}
+(default) or \code{"xgboost"}; see \code{\link[=sopls_test_gen]{sopls_test_gen()}}.}
+
+\item{group_size}{rows per cluster for \code{method = "conditional"}}
 
 \item{seed}{optional random seed}
 

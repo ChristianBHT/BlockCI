@@ -2,7 +2,7 @@
 % Please edit documentation in R/sopls_test_gen.R
 \name{sopls_test_gen}
 \alias{sopls_test_gen}
-\title{One Monte Carlo CV statistic for the SO-PLS CCI test}
+\title{One Monte Carlo CV statistic for the CCI-type test}
 \usage{
 sopls_test_gen(
   formula,
@@ -13,7 +13,9 @@ sopls_test_gen(
   max_ncomp = c(6, 10),
   cv_segments = 5,
   split = NULL,
-  losses = FALSE
+  losses = FALSE,
+  learner = c("sopls", "xgboost"),
+  learner_args = list()
 )
 }
 \arguments{
@@ -26,30 +28,54 @@ in any used variable are dropped.}
 
 \item{p}{training fraction}
 
-\item{ncomp}{\code{"auto"} (one component per V block, X components chosen by inner
-CV) or \code{c(a_1, ..., a_k, b)}: components for each of the k V blocks, then the
-components added from X (for a test without V, \code{c(0, b)})}
+\item{ncomp}{(\code{learner = "sopls"}) \code{"auto"} (one component per V block, X
+components chosen by inner CV) or \code{c(a_1, ..., a_k, b)}: components for each of
+the k V blocks, then the components added from X (for a test without V,
+\code{c(0, b)})}
 
-\item{scale}{scale the blocks}
+\item{scale}{(\code{learner = "sopls"}) scale the blocks}
 
-\item{max_ncomp}{maximum components searched when \code{ncomp = "auto"}}
+\item{max_ncomp}{(\code{learner = "sopls"}) maximum components searched when
+\code{ncomp = "auto"}}
 
-\item{cv_segments}{CV segments for the inner selection}
+\item{cv_segments}{(\code{learner = "sopls"}) CV segments for the inner selection}
 
 \item{split}{Define the training rows (optional; if \code{NULL} a random split is drawn)}
 
 \item{losses}{if \code{TRUE}, return per-test-row squared errors as well}
+
+\item{learner}{\code{"sopls"} (default) or \code{"xgboost"}}
+
+\item{learner_args}{named list of options for the learner. For \code{"xgboost"}:
+\code{nrounds} (maximum rounds, 300), \code{early_stopping_rounds} (10),
+\code{val_fraction} (inner validation share of the training rows, 0.2) and
+\code{params} (a list merged into the xgboost parameters, defaults
+\verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}).}
 }
 \value{
-named vector \verb{M0, M1, T = M1 - M0, a, b} (RMSEP metric); with
-\code{losses = TRUE} a list with \code{stats} (that vector), \code{test} (test rows), \code{l0}, \code{l1}
+named vector \verb{M0, M1, T = M1 - M0, a, b} (RMSEP metric; \code{a}, \code{b} are the
+complexities chosen by the learner: SO-PLS components, or XGBoost rounds of
+the V-only and V + X models); with \code{losses = TRUE} a list with \code{stats} (that
+vector), \code{test} (test rows), \code{l0}, \code{l1}
 }
 \description{
-M0: SO-PLS of Y on V (a comps). M1: after adding b comps of X (sequentially, on
-the V-orthogonalised Y and X). Both come from one \code{multiblock::sopls} fit.
-With \code{ncomp = "auto"}, (a, b) are chosen by inner CV on the TRAINING part only
-(test rows are never used for selection; identical for observed and null
-statistics): a = argmin over \code{1:max_ncomp[1]} of RMSECV(a,0); then b = argmin
-over \code{0:max_ncomp[2]} of RMSECV(a,b). b = 0 means X is not selected, so M1 = M0
-and T = 0.
+M0: prediction error of Y from V on held-out rows. M1: prediction error of Y
+from V and X. \code{T = M1 - M0} (RMSEP metric). The regression is done by a
+\emph{learner} wrapper chosen with \code{learner}:
+}
+\details{
+\itemize{
+\item \code{"sopls"} (default): both come from one \code{multiblock::sopls} fit (M0: V
+components; M1: after adding b components of X, sequentially on the
+V-orthogonalised Y and X). With \code{ncomp = "auto"} the number of X components b
+is chosen by inner CV on the TRAINING part only (test rows are never used for
+selection; identical for observed and null statistics); b = 0 means X is not
+selected, so M1 = M0 and T = 0.
+\item \code{"xgboost"}: two multi-target XGBoost models (Y ~ V and Y ~ V + X, needs
+xgboost >= 2.0); boosting rounds are chosen by early stopping on a validation
+part of the training rows. Options go in \code{learner_args}.
+}
+
+Learners are defined in \code{R/learners.R}; a new learner is a function with the
+same interface that is added to the \code{switch()} below.
 }

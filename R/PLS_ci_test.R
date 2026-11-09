@@ -1,8 +1,11 @@
 #' Test of conditional independence X ⫫ Y | Z via PLS residuals and permutation
 #'
-#' @param X,Y,Z   Matrices (or data.frames) with the same number of rows. Z can be a
-#'                list of blocks, e.g. list(Z1, Z2), which are combined column-wise.
-#' @param ncomp   Number of PLS components used to remove Z, or "auto" (cross-validated).
+#' @param formula `Y ~ X | Z` (the conditioning set is required). Several blocks
+#'                may be given after the bar, e.g. `Y ~ X | Z1 + Z2`; they are
+#'                combined column-wise.
+#' @param data    Named list of matrices (or a data.frame) holding the variables
+#'                in `formula`. Rows with missing values are dropped.
+#' @param ncomp  Number of PLS components used to remove Z, or "auto" (cross-validated).
 #' @param max_ncomp Upper limit for ncomp when ncomp = "auto".
 #' @param stat    "rv", "cc1" or "dcor".
 #' @param resid   "cv" (cross-validated residuals, recommended) or "fitted".
@@ -13,7 +16,8 @@
 #' @param segments Number of CV segments.
 #' @param seed    Optional seed for reproducibility.
 #' @return An object of class "htest".
-pls_ci_test <- function(X, Y, Z,
+#' @export
+pls_ci_test <- function(formula, data,
                         ncomp = "auto", max_ncomp = 10,
                         stat = c("rv", "cc1", "dcor"),
                         resid = c("cv", "fitted"),
@@ -27,20 +31,21 @@ pls_ci_test <- function(X, Y, Z,
   if (!is.null(seed)) set.seed(seed)
   
   ## ---- Input ----
-  if (is.list(Z) && !is.data.frame(Z)) Z <- do.call(cbind, lapply(Z, as.matrix))
-  X <- as.matrix(X); Y <- as.matrix(Y); Z <- as.matrix(Z)
+  cc <- .canonical(formula, data)          # parses the formula, drops incomplete rows
+  if (is.null(cc$V)) stop("formula must have a conditioning set: Y ~ X | Z")
+  X <- cc$X; Y <- cc$Y
+  Z <- do.call(cbind, cc$V)                # several Z blocks are combined column-wise
   n <- nrow(X)
-  stopifnot(nrow(Y) == n, nrow(Z) == n)
   
   if (stat == "dcor" && !requireNamespace("energy", quietly = TRUE))
-    stop("Pakken 'energy' kreves for stat = 'dcor'.")
+    stop("The package 'energy' is required for stat = 'dcor'.")
   
   ## ---- Statistikker ----
   rv <- function(A, Bm) {
     Sab <- crossprod(A, Bm)
     sum(Sab^2) / sqrt(sum(crossprod(A)^2) * sum(crossprod(Bm)^2))
   }
-  cc1  <- function(A, Bm) cancor(A, Bm)$cor[1]
+  cc1  <- function(A, Bm) stats::cancor(A, Bm)$cor[1]
   dcor <- function(A, Bm) energy::dcor(A, Bm)
   stat_fun <- switch(stat, rv = rv, cc1 = cc1, dcor = dcor)
   
@@ -49,12 +54,12 @@ pls_ci_test <- function(X, Y, Z,
     dat <- data.frame(M = I(M), Z = I(Z))
     k_max <- min(if (identical(ncomp, "auto")) max_ncomp else ncomp,
                  ncol(Z), n - 2)
-    fit <- plsr(M ~ Z, data = dat, ncomp = k_max, scale = TRUE,
-                validation = "CV", segments = segments)
+    fit <- pls::plsr(M ~ Z, data = dat, ncomp = k_max, scale = TRUE,
+                     validation = "CV", segments = segments)
     
     # velg antall komponenter
     if (identical(ncomp, "auto")) {
-      cv  <- MSEP(fit, estimate = "CV", intercept = FALSE)$val  # [1, respons, komp]
+      cv  <- pls::MSEP(fit, estimate = "CV", intercept = FALSE)$val  # [1, respons, komp]
       nc  <- which.min(apply(cv[1, , , drop = FALSE], 3, sum))
     } else {
       nc <- k_max
@@ -76,9 +81,9 @@ pls_ci_test <- function(X, Y, Z,
   ## ---- Gruppering for betinget permutasjon ----
   if (perm == "conditional") {
     k  <- min(ncol(Z), 3)
-    pc <- prcomp(Z, scale. = TRUE)$x[, seq_len(k), drop = FALSE]
+    pc <- stats::prcomp(Z, scale. = TRUE)$x[, seq_len(k), drop = FALSE]
     n_groups <- max(2, n %/% group_size)
-    grp <- kmeans(pc, centers = n_groups, nstart = 5)$cluster
+    grp <- stats::kmeans(pc, centers = n_groups, nstart = 5)$cluster
   }
   permute_rows <- function() {
     if (perm == "simple") return(sample.int(n))
@@ -98,9 +103,9 @@ pls_ci_test <- function(X, Y, Z,
   structure(list(
     statistic   = c(stat = obs),
     p.value     = p,
-    method      = sprintf("PLS-residualtest for X ⫫ Y | Z (%s, %s permutasjon, %s-residualer)",
+    method      = sprintf("PLS residual test for b X ⫫ Y | Z (%s, %s permutation, %s residuals)",
                           stat, perm, resid),
-    data.name   = "X, Y gitt Z",
+    data.name   = paste(deparse(formula), collapse = ""),
     null.value  = NULL,
     alternative = "X og Y er avhengige gitt Z",
     ncomp       = c(X = rx$ncomp, Y = ry$ncomp),

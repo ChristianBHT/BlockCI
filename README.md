@@ -93,6 +93,26 @@ SOPLS.CCI.test(Y ~ X | Z1,      d2, nperm = 99)   # null is false
 fail for the linear SO-PLS test: it rejects a true null too often (see `LOG.md`).
 `sim_6()` and `sim_7()` are still being worked on.
 
+### Other learners (XGBoost)
+
+The regression behind M0 and M1 is a swappable *learner* (`R/learners.R`). The default
+is `"sopls"`. `learner = "xgboost"` uses multi-target XGBoost (`xgboost` >= 2.0,
+`multi_strategy = "multi_output_tree"`), which can capture nonlinear effects of V:
+
+```r
+SOPLS.CCI.test(Y ~ X | Z1 + Z2, data, nperm = 99, learner = "xgboost")
+
+# options go in learner_args; params is merged into the xgboost parameters
+SOPLS.CCI.test(Y ~ X | Z1 + Z2, data, nperm = 99, learner = "xgboost",
+               learner_args = list(nrounds = 200, params = list(max_depth = 4, eta = 0.05)))
+```
+
+The number of boosting rounds is chosen by early stopping on part of the training
+rows. XGBoost is slower than SO-PLS in our small tests. `SOPLS.CCI.fast()` takes the
+same `learner` arguments. The rotation or permutation of X does not condition on V
+nonlinearly, so on strongly nonlinear scenarios the XGBoost test can still reject a
+true null too often (see `LOG.md`).
+
 ## Fast version
 
 `SOPLS.CCI.fast()` avoids the Monte Carlo loop. For each of `nsplit` train/test splits

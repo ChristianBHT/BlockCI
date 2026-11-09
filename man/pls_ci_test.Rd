@@ -5,9 +5,8 @@
 \title{Test of conditional independence X ⫫ Y | Z via PLS residuals and permutation}
 \usage{
 pls_ci_test(
-  X,
-  Y,
-  Z,
+  formula,
+  data,
   ncomp = "auto",
   max_ncomp = 10,
   stat = c("rv", "cc1", "dcor"),
@@ -20,8 +19,12 @@ pls_ci_test(
 )
 }
 \arguments{
-\item{X, Y, Z}{Matrices (or data.frames) with the same number of rows. Z can be a
-list of blocks, e.g. list(Z1, Z2), which are combined column-wise.}
+\item{formula}{\code{Y ~ X | Z} (the conditioning set is required). Several blocks
+may be given after the bar, e.g. \code{Y ~ X | Z1 + Z2}; they are
+combined column-wise.}
+
+\item{data}{Named list of matrices (or a data.frame) holding the variables
+in \code{formula}. Rows with missing values are dropped.}
 
 \item{ncomp}{Number of PLS components used to remove Z, or "auto" (cross-validated).}
 

@@ -8,13 +8,16 @@ sopls_perm_test(
   formula,
   data,
   nperm = 160,
-  method = c("rotation", "permutation"),
+  method = c("rotation", "permutation", "conditional"),
   p = 0.75,
   ncomp = "auto",
   scale = TRUE,
   max_ncomp = c(10, 5),
   cv_segments = 5,
-  progress = FALSE
+  progress = FALSE,
+  learner = c("sopls", "xgboost"),
+  learner_args = list(),
+  group_size = 10
 )
 }
 \arguments{
@@ -27,26 +30,41 @@ in any used variable are dropped.}
 
 \item{nperm}{number of null samples R}
 
-\item{method}{\code{"rotation"} or \code{"permutation"}}
+\item{method}{resampling of X: \code{"rotation"} (linear adjustment for V),
+\code{"permutation"} (global row permutation) or \code{"conditional"} (permute rows of X
+within groups of rows with similar V, see \code{\link[=permute_X_cond]{permute_X_cond()}}; suited to
+nonlinear dependence on V)}
 
 \item{p}{training fraction}
 
-\item{ncomp}{\code{"auto"} (one component per V block, X components chosen by inner
-CV) or \code{c(a_1, ..., a_k, b)}: components for each of the k V blocks, then the
-components added from X (for a test without V, \code{c(0, b)})}
+\item{ncomp}{(\code{learner = "sopls"}) \code{"auto"} (one component per V block, X
+components chosen by inner CV) or \code{c(a_1, ..., a_k, b)}: components for each of
+the k V blocks, then the components added from X (for a test without V,
+\code{c(0, b)})}
 
-\item{scale}{scale the blocks}
+\item{scale}{(\code{learner = "sopls"}) scale the blocks}
 
-\item{max_ncomp}{maximum components searched when \code{ncomp = "auto"}}
+\item{max_ncomp}{(\code{learner = "sopls"}) maximum components searched when
+\code{ncomp = "auto"}}
 
-\item{cv_segments}{CV segments for the inner selection}
+\item{cv_segments}{(\code{learner = "sopls"}) CV segments for the inner selection}
 
 \item{progress}{show a progress bar}
+
+\item{learner}{\code{"sopls"} (default) or \code{"xgboost"}}
+
+\item{learner_args}{named list of options for the learner. For \code{"xgboost"}:
+\code{nrounds} (maximum rounds, 300), \code{early_stopping_rounds} (10),
+\code{val_fraction} (inner validation share of the training rows, 0.2) and
+\code{params} (a list merged into the xgboost parameters, defaults
+\verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}).}
+
+\item{group_size}{rows per cluster for \code{method = "conditional"}}
 }
 \value{
 numeric vector of \code{nperm} null statistics
 }
 \description{
 R MCCV instances, each on a resampled X*, using \code{method = "rotation"}
-(default) or \code{"permutation"}.
+(default), \code{"permutation"} or \code{"conditional"}.
 }

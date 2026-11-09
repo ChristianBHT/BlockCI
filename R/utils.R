@@ -72,7 +72,55 @@ rotate_X <- function(X, V = NULL) {
 #' @export
 permute_X <- function(X) X[sample.int(nrow(X)), , drop = FALSE]
 
-#'  Root Mean Square Error of Prediction 
+#' Conditional row permutation of X within groups of similar V
+#'
+#' Rows are clustered on the first (up to 3) principal components of V, with about
+#' `group_size` rows per cluster, and the rows of X are permuted only within
+#' clusters. This keeps the (possibly nonlinear) dependence between X and V
+#' approximately intact while breaking the dependence between X and Y given V.
+#'
+#' @param X numeric matrix to resample
+#' @param V numeric matrix of conditioning variables, or `NULL` (then a global
+#'   permutation is used)
+#' @param group_size desired number of rows per cluster
+#' @return `X` with rows permuted within clusters
+#' @export
+permute_X_cond <- function(X, V = NULL, group_size = 10) {
+  if (is.null(V)) return(permute_X(X))
+  .permute_within(X, .v_groups(V, group_size))
+}
+
+# cluster labels of the rows of V (kmeans on up to 3 principal components)
+.v_groups <- function(V, group_size = 10) {
+  n <- nrow(V)
+  pc <- stats::prcomp(V, scale. = TRUE)$x[, seq_len(min(ncol(V), 3)), drop = FALSE]
+  stats::kmeans(pc, centers = max(2, n %/% group_size), nstart = 5)$cluster
+}
+
+.permute_within <- function(X, grp) {
+  idx <- seq_len(nrow(X))
+  for (g in unique(grp)) {
+    i <- which(grp == g)
+    idx[i] <- i[sample.int(length(i))]
+  }
+  X[idx, , drop = FALSE]
+}
+
+# A function that returns a fresh resampled copy X* of X each time it is called.
+# The V clusters for method = "conditional" are computed once.
+.make_resampler <- function(X, Vm, method, group_size = 10) {
+  switch(method,
+         rotation    = function() rotate_X(X, Vm),
+         permutation = function() permute_X(X),
+         conditional = {
+           if (is.null(Vm)) function() permute_X(X) else {
+             grp <- .v_groups(Vm, group_size)
+             function() .permute_within(X, grp)
+           }
+         })
+}
+
+#'  Root Mean Square Error of Prediction
 #'  @param 
 rmsep <- function(y, yhat) sqrt(mean((y - yhat)^2))
 

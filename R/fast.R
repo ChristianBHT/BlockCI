@@ -22,6 +22,8 @@
 #' @inheritParams SOPLS.CCI.test
 #' @param nsplit number of train/test splits K (at least 2)
 #' @param nrot number of rotated copies X* per split, averaged (default 1)
+#' @param learner,learner_args regression used for the two models: `"sopls"`
+#'   (default) or `"xgboost"`; see [sopls_test_gen()].
 #' @param correction `"nadeau-bengio"` (default, valid but conservative with low
 #'   power) or `"none"`: plain t-test across the `nsplit` split statistics, i.e.
 #'   variance `var(delta) / K`. Splits overlap, so `"none"` ignores their
@@ -32,26 +34,32 @@
 #'   RMSEP scale), ...)
 #' @export
 SOPLS.CCI.fast <- function(formula, data, p = 0.5, nsplit = 10, nrot = 1, ncomp = "auto",
-                           method = c("rotation", "permutation"), scale = TRUE,
+                           method = c("rotation", "permutation", "conditional"), scale = TRUE,
                            max_ncomp = c(10, 5), cv_segments = 5,
-                           correction = c("nadeau-bengio", "none"), seed = NA) {
+                           correction = c("nadeau-bengio", "none"),
+                           learner = c("sopls", "xgboost"), learner_args = list(),
+                           group_size = 10, seed = NA) {
   method <- match.arg(method)
   correction <- match.arg(correction)
+  learner <- match.arg(learner)
   if (nsplit < 2) stop("nsplit must be at least 2")
   if (!is.na(seed)) set.seed(seed)
   cc <- .canonical(formula, data)
   Vm <- if (is.null(cc$V)) NULL else do.call(cbind, cc$V)
   n <- nrow(cc$Y); n_tr <- floor(p * n); n_te <- n - n_tr
+  resample <- .make_resampler(cc$X, Vm, method, group_size)
 
   per_split <- lapply(seq_len(nsplit), function(k) {
     split <- sample.int(n, n_tr)
     obs <- sopls_test_gen(cc$formula, cc$data, p, ncomp, scale, max_ncomp, cv_segments,
-                          split = split, losses = TRUE)
+                          split = split, losses = TRUE,
+                          learner = learner, learner_args = learner_args)
     rots <- lapply(seq_len(nrot), function(i) {
       dat <- cc$data
-      dat$X <- if (method == "rotation") rotate_X(cc$X, Vm) else permute_X(cc$X)
+      dat$X <- resample()
       sopls_test_gen(cc$formula, dat, p, ncomp, scale, max_ncomp, cv_segments,
-                     split = split, losses = TRUE)
+                     split = split, losses = TRUE,
+                     learner = learner, learner_args = learner_args)
     })
     dstar <- rowMeans(vapply(rots, function(r) r$l1 - r$l0, numeric(n_te)))
     list(delta = mean((obs$l1 - obs$l0) - dstar),
@@ -66,7 +74,7 @@ SOPLS.CCI.fast <- function(formula, data, p = 0.5, nsplit = 10, nrot = 1, ncomp 
   pval <- if (is.na(tstat)) NA_real_ else stats::pt(tstat, df = nsplit - 1)
   structure(list(statistic = c(t = tstat), parameter = c(df = nsplit - 1), p.value = pval,
                  delta = delta, mean_delta = mean(delta), se = se,
-                 correction = correction, n_train = n_tr, n_test = n_te, nsplit = nsplit, nrot = nrot, method = method,
+                 correction = correction, learner = learner, n_train = n_tr, n_test = n_te, nsplit = nsplit, nrot = nrot, method = method,
                  T_obs = mean(vapply(per_split, `[[`, 0, "T_obs")),
                  T_null = mean(vapply(per_split, `[[`, 0, "T_null")),
                  ncomp_selected = c(V = mean(vapply(per_split, `[[`, 0, "a")),
