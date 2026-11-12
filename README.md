@@ -93,7 +93,11 @@ SOPLS.CCI.test(Y ~ X | Z1,      d2, nperm = 99)   # null is false
 fail for the linear SO-PLS test: it rejects a true null too often (see `LOG.md`).
 `sim_6()` and `sim_7()` are still being worked on.
 
-### Other learners (XGBoost)
+### Other learners (XGBoost) — experimental, needs more work
+
+The XGBoost learner and `multixg_ci_test()` are not reliable yet: in our simulations
+they reject true nulls too often on nonlinear data (see `LOG.md`). They print a
+message when used.
 
 The regression behind M0 and M1 is a swappable *learner* (`R/learners.R`). The default
 is `"sopls"`. `learner = "xgboost"` uses multi-target XGBoost (`xgboost` >= 2.0,
@@ -121,15 +125,42 @@ the same held-out rows, and combines the splits with a resampled t-test. It take
 about 1-2 seconds where the Monte Carlo test takes about 10 seconds or more.
 
 ```r
-SOPLS.CCI.fast(Y ~ X | Z1 + Z2, data)                       # Nadeau-Bengio corrected (default)
-SOPLS.CCI.fast(Y ~ X | Z1 + Z2, data, correction = "none")  # more power, can be liberal
+SOPLS.CCI.fast(Y ~ X | Z1 + Z2, data)                                  # plain t across splits (default)
+SOPLS.CCI.fast(Y ~ X | Z1 + Z2, data, correction = "nadeau-bengio")    # valid but low power
 SOPLS.CCI.fast(Y ~ X | Z1, data, nsplit = 20)
 ```
 
-This version is experimental. In a small simulation (n = 300) the default correction
-was valid but had low power, and `correction = "none"` had much better power but
-rejected slightly too often under the null. Use the Monte Carlo test for a final
+This version is experimental. In small simulations (n = 300) the default (no correction)
+had much better power than Nadeau-Bengio but rejected slightly too often under the null
+(0.05-0.08); Nadeau-Bengio was valid but had low power. Like the other tests it fails on
+the nonlinear scenario. Use the Monte Carlo test for a final
 p-value until the fast version has been calibrated (details in `LOG.md`).
+
+## Residual-based tests
+
+Three tests share one idea: remove Z from X and from Y with a regression, then test
+by permutation whether the residuals are still dependent. They differ only in the
+regression, and all take `formula` and `data`:
+
+```r
+pls_ci_test(Y ~ X | Z1 + Z2, data)       # PLS
+rosa_ci_test(Y ~ X | Z1 + Z2, data)      # ROSA (Z blocks kept separate)
+multixg_ci_test(Y ~ X | Z1 + Z2, data)   # multi-target XGBoost, cross-fitted (needs more work)
+```
+
+`sim_scale()` simulates blocks of any size for large-N and high-dimensional studies.
+In our simulations (`inst/benchmarks/scale_timing.R`, `scale_power.R`, results in `LOG.md`)
+`pls_ci_test()` handles one million rows (about 5 to 7 minutes) and thousands of
+variables (under a minute); `rosa_ci_test()` is about 2.5 times slower. Type I error is
+close to nominal for Gaussian, Laplace, skewed and heavy-tailed noise, but when the
+noise level depends on Z use `perm = "conditional"`, and in high dimension use
+cross-validated residuals (`resid = "cv"`).
+
+`multixg_ci_test()` predicts each fold from a model trained on the other folds
+(`nfolds = 5`), so no row is predicted by a model that has seen it. Experimental: in a
+small simulation (`inst/benchmarks/multixg_power.R`) it rejected true nulls far too
+often when Z affects X and Y in a way that is hard to learn from a few hundred rows
+(see `LOG.md`).
 
 ## Development
 

@@ -1,0 +1,70 @@
+---
+title: "Block CI Notebook"
+output: html_notebook
+---
+
+Denne notebooken forsøker å dekke hva som er blitt gjort i prosjektet med å lage betinget uavhengighetstesting mellom matriser/blokker. Skrevet av meg selv, til meg selv, for økt forståelse
+
+Litt generelt; the no free lunch theorem gjelder i enda større grad nå. 
+
+# Testing conditional independence between blocks
+
+## pls_ci_test (PLS blokk betinget uavhengighet) 
+Denne metoden er basert på at om $Y \perp X | Z$ (bruker $\perp$ som uavhengighetstegn) har vi generelt at residualene fra regresjonene $Y ~ Z$ og   $X ~ Z$ være ukorrlert. I funksjonen `PSL_ci_test` er $Y ~ Z$ og   $X ~ Z$ PLS regresjon mellom matriser. Etter estimering og residualene er beregnet, har man to matriser med residualer $R_Y$ og $R_X$. Korrelasjonen mellom matrisene kan måles med RV-koeffisient, første kanoniske korrelasjon eller distansekorrelasjon.
+
+RV-koeffisient er gitt med $RV(R_Y, R_X) = ||R_Y^TR_X||_F^2 /(||R_Y^T R_Y||_F ||R_X^T R_X||^2_F)$, hvor $||A||_F$ er Frobenius-normen til matrise A. RV-koeffisient er vektorvarianten av korrelasjon hvor $||R_Y^TR_X||_F^2$ tilsvarer Cov(Y,X) og $||R_Y^T R_Y||_F ||R_X^T R_X||^2_F$ tilsvarer $\sqrt(Var(Y)Var(X))$.  
+
+Første kanoniske korrelasjon er den høyeste korrelsajonen det er mulig å oppdrive ved å kombinere kolonnen i matrisene $R_Y$ og $R_X$, med vektene $a$ og $b$. 
+
+Distansekorrelasjon er gitt med $dCOr^2 = \frac{dCov^2(R_X,R_Y)}{\sqrt(dCov^2(X,X)dCov^2(Y,Y))}$ hvor $dCov^2(R_X,R_Y) = \frac{1}{n}\sum_{i,j}(A_{i,j}B_{i,j})$, og $A_{i,j}$ er en dobbeltsenteret avstandsmatrise av $R_X$, og $B_{i,j}$ er tilsvarende for $R_Y$.
+
+Fordelen med å bruke distansekorrelasjon, er at den kan fange om ikke lineære sammenhenger i residualene. RV-koeffisienten er fordelaktig om korrelasjonen mellom $R_X$ of $R_Y$ er fordelt jevnt over residualene, mens første kanoniske korrelasjon er bedre om korrelasjon mellom matrisene er knyttet til noen få kolonner med residualer. 
+
+I alle tilfellen så sammenlignes beregnet verdi med en null-fordeling genereret ved å permutere residualene `B = ` ganger (vurdere rotasjon her). 
+
+### Simuleringseksempler
+Først så simulerer vi litt data. 
+```{r}
+sim_1 <- function(n = 500, p = 6) {
+  Z1 <- matrix(stats::rnorm(n * p), n, p)
+  Z2 <- matrix(stats::rnorm(n * p), n, p)
+  Z  <- cbind(Z1, Z2)
+  
+  X  <- Z %*% matrix(stats::rnorm(2 * p * p), 2 * p, p) + matrix(stats::rnorm(n * p), n, p)
+  Y  <- Z %*% matrix(stats::rnorm(2 * p * p), 2 * p, p) + matrix(stats::rnorm(n * p), n, p)
+  list(Y = Y, X = X, Z1 = Z1, Z2 = Z2)
+}
+set.seed(1)
+dat <- sim_1()
+```
+I `dat` er det fire blokker/matriser med data (`Z1, Z2, X, Y`). Alle matrisene er av størrelse 500 ganger 6, og man har  $Y \perp X | Z_1, Z_2$. Først tester vi en sann uavhengighet.
+
+```{r}
+set.seed(2)
+test1 <- pls_ci_test(Y ~ X | Z1 + Z2, data = dat)
+print(test1)
+```
+Så en hypotese som ikke holder;
+```{r}
+test2 <- pls_ci_test(Y ~ X | Z1, data = dat)
+print(test2)
+```
+Basert på p-verdier forkastes null hypotesen korrekt. Om man vil endre hvordan korrelasjon beregnes, bruker man argumentet `stat`.
+```{r}
+test <- pls_ci_test(Y ~ X | Z1, data = dat, stat = "dcor")
+print(test)
+```
+
+
+## rosa_ci_test (PLS blokk betinget uavhengighet) 
+Denne metoden er lik som PLS testen, men istedet for PLS-regresjon benyttes ROSA (response-oriented sequential alternation `multiblock::rosa`) regresjon. Hensikten med denne metoden er at den er potensielt enda raskere enn PLS basert metode. 
+
+```{r}
+test <- rosa_ci_test(Y ~ X | Z1 + Z2, data = dat)
+print(test)
+```
+
+## SOPLS.CCI.test()
+
+
+ 

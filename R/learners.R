@@ -67,6 +67,41 @@
        a = sum(av), b = nb)
 }
 
+# Regular PLS regression (pls::plsr). V-only model: Y ~ V; full model: Y ~ V + X,
+# where all V blocks and X are simply cbind-ed (no block structure, unlike SO-PLS).
+# The number of components of each model is chosen by inner CV on the TRAINING rows
+# (ncomp = "auto") or given as ncomp = c(a, b) for the V-only and the V + X model.
+# max_ncomp is the search limit (first element is used).
+.learner_pls <- function(Ys, X, Vl, train, test, ncomp, scale, max_ncomp, cv_segments) {
+  q <- ncol(Ys); nt <- length(test)
+  auto <- identical(ncomp, "auto")
+  if (!auto && length(ncomp) != 2) stop("for PLS, ncomp must be \"auto\" or c(a, b): components for Y ~ V and for Y ~ V + X")
+
+  fit_pred <- function(Fm, k_fixed) {
+    kmax <- min(if (auto) max_ncomp[1] else k_fixed, ncol(Fm), length(train) - 2)
+    dtr <- data.frame(Y = I(Ys[train, , drop = FALSE]), Fm = I(Fm[train, , drop = FALSE]))
+    dte <- data.frame(Fm = I(Fm[test, , drop = FALSE]))
+    fit <- pls::plsr(Y ~ Fm, ncomp = kmax, data = dtr, scale = scale,
+                     validation = if (auto) "CV" else "none",
+                     segments = min(cv_segments, length(train)))
+    nc <- kmax
+    if (auto) {
+      cv <- pls::MSEP(fit, estimate = "CV", intercept = FALSE)$val   # [1, response, component]
+      nc <- as.integer(which.min(apply(cv[1, , , drop = FALSE], 3, sum)))
+    }
+    list(pred = matrix(stats::predict(fit, newdata = dte, ncomp = nc), nt, q), nc = as.integer(nc))
+  }
+
+  if (is.null(Vl)) {   # unconditional test: V-only predictor is the training mean (0 on the Ys scale)
+    f1 <- fit_pred(X, if (auto) NULL else ncomp[2])
+    return(list(yh0 = matrix(0, nt, q), yh1 = f1$pred, a = 0, b = f1$nc))
+  }
+  Vm <- do.call(cbind, Vl)
+  f0 <- fit_pred(Vm, if (auto) NULL else ncomp[1])
+  f1 <- fit_pred(cbind(Vm, X), if (auto) NULL else ncomp[2])
+  list(yh0 = f0$pred, yh1 = f1$pred, a = f0$nc, b = f1$nc)
+}
+
 # XGBoost with multi-target regression (xgboost >= 2.0). V-only model: Y ~ V; full
 # model: Y ~ V + X. Number of rounds chosen by early stopping on an inner
 # validation part of the TRAINING rows.
@@ -77,6 +112,7 @@
 .learner_xgboost <- function(Ys, X, Vl, train, test, learner_args = list()) {
   if (!requireNamespace("xgboost", quietly = TRUE))
     stop("The package 'xgboost' (>= 2.0) is required for learner = \"xgboost\".")
+  .message_once("learner = \"xgboost\" is experimental and needs more work: type I error is not controlled on nonlinear data (see LOG.md).")
   q <- ncol(Ys); nt <- length(test)
   la <- utils::modifyList(list(nrounds = 300, early_stopping_rounds = 10, val_fraction = 0.2, params = list()),
                           learner_args)

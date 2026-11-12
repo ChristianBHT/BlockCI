@@ -24,11 +24,11 @@
 #' @param nrot number of rotated copies X* per split, averaged (default 1)
 #' @param learner,learner_args regression used for the two models: `"sopls"`
 #'   (default) or `"xgboost"`; see [sopls_test_gen()].
-#' @param correction `"nadeau-bengio"` (default, valid but conservative with low
-#'   power) or `"none"`: plain t-test across the `nsplit` split statistics, i.e.
-#'   variance `var(delta) / K`. Splits overlap, so `"none"` ignores their
-#'   dependence and can be anti-conservative (about 8% rejection at the nominal
-#'   5% level in a small simulation), but it has much more power.
+#' @param correction `"none"` (default): plain t-test across the `nsplit` split
+#'   statistics, i.e. variance `var(delta) / K`. Splits overlap, so this ignores
+#'   their dependence and can be anti-conservative (0.05-0.08 rejection at the
+#'   nominal 5% level in small linear simulations), but it has much more power.
+#'   `"nadeau-bengio"`: corrected resampled t; valid but conservative with low power.
 #' @return object of class `SOPLSCCIfast` (a list with `statistic` (t),
 #'   `p.value`, `delta` (per split), `T_obs` and `T_null` (mean over splits,
 #'   RMSEP scale), ...)
@@ -36,7 +36,7 @@
 SOPLS.CCI.fast <- function(formula, data, p = 0.5, nsplit = 10, nrot = 1, ncomp = "auto",
                            method = c("rotation", "permutation", "conditional"), scale = TRUE,
                            max_ncomp = c(10, 5), cv_segments = 5,
-                           correction = c("nadeau-bengio", "none"),
+                           correction = c("none", "nadeau-bengio"),
                            learner = c("sopls", "xgboost"), learner_args = list(),
                            group_size = 10, seed = NA) {
   method <- match.arg(method)

@@ -16,7 +16,7 @@ SOPLS.CCI.fast(
   scale = TRUE,
   max_ncomp = c(10, 5),
   cv_segments = 5,
-  correction = c("nadeau-bengio", "none"),
+  correction = c("none", "nadeau-bengio"),
   learner = c("sopls", "xgboost"),
   learner_args = list(),
   group_size = 10,
@@ -50,11 +50,11 @@ linear adjustment for V), \code{"permutation"} (global row permutation) or
 
 \item{max_ncomp, cv_segments}{settings for \code{ncomp = "auto"}}
 
-\item{correction}{\code{"nadeau-bengio"} (default, valid but conservative with low
-power) or \code{"none"}: plain t-test across the \code{nsplit} split statistics, i.e.
-variance \code{var(delta) / K}. Splits overlap, so \code{"none"} ignores their
-dependence and can be anti-conservative (about 8\% rejection at the nominal
-5\% level in a small simulation), but it has much more power.}
+\item{correction}{\code{"none"} (default): plain t-test across the \code{nsplit} split
+statistics, i.e. variance \code{var(delta) / K}. Splits overlap, so this ignores
+their dependence and can be anti-conservative (0.05-0.08 rejection at the
+nominal 5\% level in small linear simulations), but it has much more power.
+\code{"nadeau-bengio"}: corrected resampled t; valid but conservative with low power.}
 
 \item{learner, learner_args}{regression used for the two models: \code{"sopls"}
 (default) or \code{"xgboost"}; see \code{\link[=sopls_test_gen]{sopls_test_gen()}}.}

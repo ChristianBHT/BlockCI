@@ -7,6 +7,16 @@
 
 # ---- helpers ---------------------------------------------------------------
 
+# Show a message only once per R session (per distinct text)
+.msg_env <- new.env(parent = emptyenv())
+.message_once <- function(txt) {
+  if (is.null(.msg_env[[txt]])) {
+    assign(txt, TRUE, envir = .msg_env)
+    message(txt)
+  }
+  invisible(NULL)
+}
+
 .get_block <- function(vars, data) {
   if (length(vars) == 0) return(NULL)
   if (is.data.frame(data)) return(as.matrix(data[, vars, drop = FALSE]))
@@ -121,7 +131,8 @@ permute_X_cond <- function(X, V = NULL, group_size = 10) {
 }
 
 #'  Root Mean Square Error of Prediction
-#'  @param 
+#'  @param y numeric vector of observed values
+#'  @param yhat numeric vector of predicted values
 rmsep <- function(y, yhat) sqrt(mean((y - yhat)^2))
 
 

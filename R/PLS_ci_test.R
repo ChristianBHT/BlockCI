@@ -107,7 +107,7 @@ pls_ci_test <- function(formula, data,
                           stat, perm, resid),
     data.name   = paste(deparse(formula), collapse = ""),
     null.value  = NULL,
-    alternative = "X og Y er avhengige gitt Z",
+    alternative = "X and Y dependent given Z",
     ncomp       = c(X = rx$ncomp, Y = ry$ncomp),
     perm_stats  = perms
   ), class = "htest")

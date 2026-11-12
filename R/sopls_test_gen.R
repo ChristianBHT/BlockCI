@@ -10,9 +10,10 @@
 #'   is chosen by inner CV on the TRAINING part only (test rows are never used for
 #'   selection; identical for observed and null statistics); b = 0 means X is not
 #'   selected, so M1 = M0 and T = 0.
-#' * `"xgboost"`: two multi-target XGBoost models (Y ~ V and Y ~ V + X, needs
-#'   xgboost >= 2.0); boosting rounds are chosen by early stopping on a validation
-#'   part of the training rows. Options go in `learner_args`.
+#' * `"xgboost"` (experimental, needs more work: type I error is not controlled on
+#'   nonlinear scenarios, see `LOG.md`): two multi-target XGBoost models (Y ~ V and
+#'   Y ~ V + X, needs xgboost >= 2.0); boosting rounds are chosen by early stopping
+#'   on a validation part of the training rows. Options go in `learner_args`.
 #'
 #' Learners are defined in `R/learners.R`; a new learner is a function with the
 #' same interface that is added to the `switch()` below.
@@ -33,7 +34,8 @@
 #' @param cv_segments (`learner = "sopls"`) CV segments for the inner selection
 #' @param split Define the training rows (optional; if `NULL` a random split is drawn)
 #' @param losses if `TRUE`, return per-test-row squared errors as well
-#' @param learner `"sopls"` (default) or `"xgboost"`
+#' @param learner `"sopls"` (default), `"xgboost"` or `"pls"` (regular PLS regression
+#'   of Y on cbind(V, X); see [PLS.CCI.test()])
 #' @param learner_args named list of options for the learner. For `"xgboost"`:
 #'   `nrounds` (maximum rounds, 300), `early_stopping_rounds` (10),
 #'   `val_fraction` (inner validation share of the training rows, 0.2) and
@@ -48,7 +50,7 @@
 sopls_test_gen <- function(formula, data, p = 0.75, ncomp = "auto", scale = TRUE,
                            max_ncomp = c(6, 10), cv_segments = 5,
                            split = NULL, losses = FALSE,
-                           learner = c("sopls", "xgboost"), learner_args = list()) {
+                           learner = c("sopls", "xgboost", "pls"), learner_args = list()) {
   learner <- match.arg(learner)
   cc <- .canonical(formula, data)
   Y <- cc$Y; X <- cc$X; V <- cc$V
@@ -64,7 +66,8 @@ sopls_test_gen <- function(formula, data, p = 0.75, ncomp = "auto", scale = TRUE
 
   fit <- switch(learner,
                 sopls   = .learner_sopls(Ys, X, V, train, test, ncomp, scale, max_ncomp, cv_segments),
-                xgboost = .learner_xgboost(Ys, X, V, train, test, learner_args))
+                xgboost = .learner_xgboost(Ys, X, V, train, test, learner_args),
+                pls     = .learner_pls(Ys, X, V, train, test, ncomp, scale, max_ncomp, cv_segments))
 
   Yt <- Ys[test, , drop = FALSE]
   M0 <- rmsep(Yt, fit$yh0)

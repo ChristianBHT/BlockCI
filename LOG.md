@@ -46,6 +46,36 @@
 
 - Conditional resampling (`method = "conditional"`, `permute_X_cond()`; kmeans clusters on up to 3 PCs of V, about 10 rows per cluster): implemented, 15 tests pass, but the simulation (n = 500, R = 39; run stopped before the last line, small numbers of repetitions) shows it does NOT control type I error. Rejection at 0.05 with H0 true: nonlinear `sim_5` SO-PLS 26/30, XGBoost 13/20 (rotation + XGBoost earlier: 4/10); linear `sim_2` SO-PLS 4/20 (rotation was about 0-7%). Power given Z1 only on `sim_5`: SO-PLS 18/20, XGBoost 14/15. Likely cause: V has 8-10 dimensions and the clusters use only 3 PCs, so rows in a cluster are not similar in V; X* then carries less V information than X and X looks more useful than X*. Not fixed. Ideas: more PCs or nearest neighbours in the full standardised V, fewer rows per cluster, or a model-based X|V resampling.
 
+## 2026-11-10
+- `multixg_ci_test(formula, data)` (`R/multixg_ci_test.R`): same logic as `pls_ci_test()`/`rosa_ci_test()` with multi-target XGBoost (`multi_output_tree`) as the regression and 5-fold cross-fitted predictions (targets standardised with training-fold stats; rounds by early stopping on 20% of each training part; permutation test on the residuals, RV statistic, shared helpers `.resid_perm_test`). Benchmark script: `inst/benchmarks/multixg_power.R`.
+- Simulation (n = 500, B = 199, 50 reps, rejection at 0.05; conditional / simple permutation):
+  - `sim_1`: H0 true (given Z1, Z2) 1.00 / 1.00 (FAILS); H0 false (given Z1) 1.00 / 1.00.
+  - `sim_3` (chain): H0 true given Z1, Z2: 0.08 / 0.10; H0 true given Z1: 0.36 / 0.38 (inflated); H0 false given Z2: 0.20 / 0.20 (low power).
+  - `sim_5` (nonlinear): H0 true 1.00 / 1.00 (FAILS); H0 false 1.00 / 1.00.
+- Diagnosis (`sim_1`, one dataset): a linear fit on Z still explains about 25% of the variance of the XGBoost residuals of X and of Y (OLS residuals: 0), so both residuals keep a function of Z and stay correlated. Raising `nrounds` to 1500 and `max_depth` to 6 did not help (14/14 rejections in each setting). Cross-fitting fixes overfitting but not the regression error itself; with 12 Z variables and about 400 training rows the boosted trees do not remove the Z signal well enough. Residual tests need the regression error of X|Z and Y|Z to be small, and the permutation of residuals does not repair that.
+- Ideas: a learner that fits the linear part (e.g. linear model first, XGBoost on its residuals, or `booster = "gblinear"`), more training rows, or the test statistic of the generalised covariance measure (product of residuals normalised by its variance, Shah and Peters 2020).
+
+- Multi-block GCM (Shah and Peters 2020) on cross-fitted residuals (`inst/benchmarks/gcm_linxgb.R`): statistics built from the per-pair products eps_ij * xi_ik, T_jk = sqrt(n) mean / sd, with the dependence between the T_jk taken from their estimated correlation matrix C: signed sum ~ N(0, 1'C1); sum of squares and max by simulation from N(0, C); Wald chi-square (p*q df). The pooled statistic is not the problem: with XGBoost residuals sum of squares / max / Wald rejected a true null in `sim_1` 100% / 98% / 100% (same as the RV permutation test).
+- Regression comparison (n = 500, 40 reps, rejection at 0.05, sum of squares / max / Wald; OLS "lin", XGBoost "xgb", OLS then XGBoost on its residuals "linxgb"):
+  - `sim_1` H0 true: lin 0.03 / 0.03 / 0.12; xgb 1.00 / 0.98 / 1.00; linxgb 0.03 / 0.03 / 0.12. `sim_1` power (given Z1): 1.00 for all.
+  - `sim_3` H0 true given Z1, Z2: lin 0.03-0.05, xgb 0.05-0.15, linxgb 0.03-0.05. Given Z1 (also true): lin 0.05-0.12, xgb 0.20-0.30, linxgb 0.05-0.10. Power given Z2: about 0.05-0.10 for lin/linxgb, 0.2-0.28 for xgb (the dependence given Z2 is weak or absent; xgb's higher rate there looks like its type I inflation, not power).
+  - `sim_5` (nonlinear) H0 true: 1.00 for all three; the signed sum rejects 0.52-0.65.
+  - Conclusion: putting the linear part in first fixes the linear scenarios and makes the GCM-style tests calibrated, but the XGBoost step on the OLS residuals adds nothing over plain OLS in `sim_1`/`sim_3` and does not repair the nonlinear `sim_5`. The signed sum has poor power (signs of the T_jk cancel). Not added to the package yet.
+
+## 2026-11-10 (scale studies for `pls_ci_test` / `rosa_ci_test`)
+- `xgboost` learner and `multixg_ci_test()` tagged "needs more work" (docs section, one-time message, README).
+- New generator `sim_scale(n, p_z, q_x, q_y, rank, noise, effect, signal)` (`R/sim_scale.R`): Z1, Z2 = low-rank factors + noise; X and Y built from `rank` directions of the OBSERVED Z plus own noise, so H0 is exact when `effect = 0`; `effect` adds Y_j += effect * X_j. Noise: gaussian, t3, laplace, skewed, hetero (noise sd depends on Z). `signal = "factor"` (directions that carry the factors, easy to find also when p > n) or `"dense"` (random directions of Z, hard in high dimension).
+- Timing (`inst/benchmarks/scale_timing.R`, results in `scale_timing_results.csv`; one test, B = 199; run while another study used 6 other cores; machine: 12 logical CPUs, 15 GB RAM). Settings: fast = ncomp 12, in-sample residuals; cv = auto ncomp (max 12), CV residuals (5 segments). Simple permutation.
+  - High N (20 Z vars, 4+4): PLS fast 0.22 s (1e3), 1.3 s (1e4), 27 s (1e5), 91 s (3e5), 404 s (1e6); PLS cv 0.17, 1.2, 18, 67, 273 s. ROSA fast 5.9 s (1e4), 79 s (1e5), 265 s (3e5); ROSA cv 3.4, 45, 152 s. Linear in n; ROSA about 2.5-3x slower than PLS. 3e6 not tried (cutoff 120 s).
+  - Many Z variables (n = 1000): PLS fast 7.8 s (1000), 37 s (5000); PLS cv 2.4 s, 12 s; ROSA fast 17 s, 106 s; ROSA cv 9 s, 57 s.
+  - Many X/Y variables (n = 1000, 20 Z): about quadratic in q. PLS 5 s (q = 100), 33 s (300), 330 s (1000); ROSA cv 12 s, 81 s, 660 s.
+  - Memory limits many variables at huge N (about 5 GB free).
+- Type I error and power (`inst/benchmarks/scale_power.R`, results in `scale_power_results.csv`; B = 199; H1 = local effect 0.06 * sqrt(1000/n); 16-80 reps per cell, so rates are rough; 92 min). Simple permutation, `fast` for high N, `cv` for high dimension.
+  - High N, p_z = 20, factor signal: gaussian, laplace, skewed, t3 noise are about nominal for both tests at n = 1e3, 1e4, 1e5 (type I 0.00-0.10; t3 is conservative, 0.00-0.05), power about 0.5-0.8 for the local alternative.
+  - Heteroskedastic noise (sd depends on Z): type I 0.56-0.92 at every n for both tests (simple permutation). Follow-up (n = 1e3 / 1e4, pls fast): simple 0.85 / 0.56 type I; conditional permutation (the default in `pls_ci_test`) 0.12 / 0.06 (group_size 10), 0.10 / 0.03 (group_size 25), at lower power (0.29-0.38 / 0.16-0.34 at the same effect). So use `perm = "conditional"` when the noise level may depend on Z.
+  - High dimension (n = 500, factor signal): p_z = 200: gaussian 0.00, t3 0.04 type I for both; p_z = 1000: gaussian PLS 0.00 / ROSA 0.17, t3 PLS 0.08 / ROSA 0.21 (ROSA somewhat liberal; 24 reps); power 0.3-0.6. In-sample residuals break here (probe: PLS 0.29-0.64 type I at p_z = 1000), hence `cv`.
+  - Dense signal (random directions of Z, p_z = 200, n = 500): type I 0.79 (PLS) / 0.92 (ROSA): the regression cannot remove Z. Earlier probe: with dense signal and n = 1e5, 6 PLS components give type I 1.00, 12 components 0.00, so the number of components matters at large n.
+
 ## Next
 - Fast test: calibrate the variance between "none" and Nadeau-Bengio (or use more rotations/splits) and check it on the four H0 scenarios and n = 1000/2000.
 - Decide the default for V components (one per block vs CV), then run a type I / power study for it.
@@ -53,3 +83,7 @@
 - Break ties in the p-value (randomised) so the test is not conservative when b = 0.
 - Use the SO-PLS CI test inside the block-level PC search (replace Fisher-z in `pcor_test`).
 - (to be decided)
+
+## 2026-11-10
+- Small power/type I study (`inst/benchmarks/small_power_typeI.R`, n = 300, 80 reps, R = 39, effect 0/0.3/0.6 added X -> Y). Linear (`sim_2`) H0 rejection at 0.05: MC rotation 0.06, MC permutation 0.90 (!), fast N-B 0.00, fast none 0.05. Power at effect 0.3/0.6: rotation 0.36/0.74, fast N-B 0.23/0.48, fast none 0.58/0.61. Nonlinear (`sim_5`) H0: all methods reject 0.68-0.95 (fail). Permutation failure on linear data probably due to the one-component-per-V-block default (not yet confirmed).
+- `SOPLS.CCI.fast()` default is now `correction = "none"` (better power, size 0.05-0.08 in linear runs); `"nadeau-bengio"` still available.

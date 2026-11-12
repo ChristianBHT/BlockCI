@@ -14,7 +14,7 @@ sopls_test_gen(
   cv_segments = 5,
   split = NULL,
   losses = FALSE,
-  learner = c("sopls", "xgboost"),
+  learner = c("sopls", "xgboost", "pls"),
   learner_args = list()
 )
 }
@@ -44,7 +44,8 @@ the k V blocks, then the components added from X (for a test without V,
 
 \item{losses}{if \code{TRUE}, return per-test-row squared errors as well}
 
-\item{learner}{\code{"sopls"} (default) or \code{"xgboost"}}
+\item{learner}{\code{"sopls"} (default), \code{"xgboost"} or \code{"pls"} (regular PLS regression
+of Y on cbind(V, X); see \code{\link[=PLS.CCI.test]{PLS.CCI.test()}})}
 
 \item{learner_args}{named list of options for the learner. For \code{"xgboost"}:
 \code{nrounds} (maximum rounds, 300), \code{early_stopping_rounds} (10),
@@ -71,9 +72,10 @@ V-orthogonalised Y and X). With \code{ncomp = "auto"} the number of X components
 is chosen by inner CV on the TRAINING part only (test rows are never used for
 selection; identical for observed and null statistics); b = 0 means X is not
 selected, so M1 = M0 and T = 0.
-\item \code{"xgboost"}: two multi-target XGBoost models (Y ~ V and Y ~ V + X, needs
-xgboost >= 2.0); boosting rounds are chosen by early stopping on a validation
-part of the training rows. Options go in \code{learner_args}.
+\item \code{"xgboost"} (experimental, needs more work: type I error is not controlled on
+nonlinear scenarios, see \code{LOG.md}): two multi-target XGBoost models (Y ~ V and
+Y ~ V + X, needs xgboost >= 2.0); boosting rounds are chosen by early stopping
+on a validation part of the training rows. Options go in \code{learner_args}.
 }
 
 Learners are defined in \code{R/learners.R}; a new learner is a function with the

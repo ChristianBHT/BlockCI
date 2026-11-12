@@ -15,7 +15,7 @@ sopls_perm_test(
   max_ncomp = c(10, 5),
   cv_segments = 5,
   progress = FALSE,
-  learner = c("sopls", "xgboost"),
+  learner = c("sopls", "xgboost", "pls"),
   learner_args = list(),
   group_size = 10
 )
@@ -51,7 +51,8 @@ the k V blocks, then the components added from X (for a test without V,
 
 \item{progress}{show a progress bar}
 
-\item{learner}{\code{"sopls"} (default) or \code{"xgboost"}}
+\item{learner}{\code{"sopls"} (default), \code{"xgboost"} or \code{"pls"} (regular PLS regression
+of Y on cbind(V, X); see \code{\link[=PLS.CCI.test]{PLS.CCI.test()}})}
 
 \item{learner_args}{named list of options for the learner. For \code{"xgboost"}:
 \code{nrounds} (maximum rounds, 300), \code{early_stopping_rounds} (10),

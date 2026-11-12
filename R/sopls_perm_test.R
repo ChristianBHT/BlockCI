@@ -17,7 +17,7 @@ sopls_perm_test <- function(formula, data, nperm = 160,
                             method = c("rotation", "permutation", "conditional"),
                             p = 0.75, ncomp = "auto", scale = TRUE, max_ncomp = c(10, 5),
                             cv_segments = 5, progress = FALSE,
-                            learner = c("sopls", "xgboost"), learner_args = list(),
+                            learner = c("sopls", "xgboost", "pls"), learner_args = list(),
                             group_size = 10) {
   learner <- match.arg(learner)
   method <- match.arg(method)
