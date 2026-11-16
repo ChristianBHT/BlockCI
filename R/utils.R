@@ -136,3 +136,47 @@ permute_X_cond <- function(X, V = NULL, group_size = 10) {
 rmsep <- function(y, yhat) sqrt(mean((y - yhat)^2))
 
 
+
+# ---- shared pieces for residual-based tests ----------------------------------
+
+# dependence statistic between two matrices
+.resid_stat_fun <- function(stat) {
+  switch(stat,
+         rv = function(A, Bm) {
+           Sab <- crossprod(A, Bm)
+           sum(Sab^2) / sqrt(sum(crossprod(A)^2) * sum(crossprod(Bm)^2))
+         },
+         cc1 = function(A, Bm) stats::cancor(A, Bm)$cor[1],
+         dcor = {
+           if (!requireNamespace("energy", quietly = TRUE))
+             stop("The package 'energy' is required for stat = 'dcor'.")
+           function(A, Bm) energy::dcor(A, Bm)
+         })
+}
+
+# Permutation test of dependence between the residual matrices X_res and Y_res.
+# 'conditional': rows are permuted only within clusters of similar Z.
+.resid_perm_test <- function(X_res, Y_res, Z, stat, perm, B, group_size) {
+  n <- nrow(X_res)
+  X_res <- scale(X_res, scale = FALSE)
+  Y_res <- scale(Y_res, scale = FALSE)
+  stat_fun <- .resid_stat_fun(stat)
+  if (perm == "conditional") {
+    k  <- min(ncol(Z), 3)
+    pc <- stats::prcomp(Z, scale. = TRUE)$x[, seq_len(k), drop = FALSE]
+    n_groups <- max(2, n %/% group_size)
+    grp <- stats::kmeans(pc, centers = n_groups, nstart = 5)$cluster
+  }
+  permute_rows <- function() {
+    if (perm == "simple") return(sample.int(n))
+    idx <- seq_len(n)
+    for (g in unique(grp)) {
+      i <- which(grp == g)
+      idx[i] <- i[sample.int(length(i))]
+    }
+    idx
+  }
+  obs   <- stat_fun(X_res, Y_res)
+  perms <- replicate(B, stat_fun(X_res, Y_res[permute_rows(), , drop = FALSE]))
+  list(obs = obs, perms = perms, p = (1 + sum(perms >= obs)) / (B + 1))
+}

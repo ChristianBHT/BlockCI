@@ -76,6 +76,15 @@
   - High dimension (n = 500, factor signal): p_z = 200: gaussian 0.00, t3 0.04 type I for both; p_z = 1000: gaussian PLS 0.00 / ROSA 0.17, t3 PLS 0.08 / ROSA 0.21 (ROSA somewhat liberal; 24 reps); power 0.3-0.6. In-sample residuals break here (probe: PLS 0.29-0.64 type I at p_z = 1000), hence `cv`.
   - Dense signal (random directions of Z, p_z = 200, n = 500): type I 0.79 (PLS) / 0.92 (ROSA): the regression cannot remove Z. Earlier probe: with dense signal and n = 1e5, 6 PLS components give type I 1.00, 12 components 0.00, so the number of components matters at large n.
 
+## 2026-11-12 (`PLS.CCI.test`, `multixgb.CCI.test`, small comparison)
+- New: `PLS.CCI.test()` (plain PLS on Y ~ V and Y ~ V + X, V and X cbind-ed, components by inner CV on training rows) and `multixgb.CCI.test()` (multi-target XGBoost, experimental). Both use the SOPLS.CCI.test machinery via `learner = "pls"` / `"xgboost"`.
+- Small study (`inst/benchmarks/cci_learners_power.R`, results in `cci_learners_power_results.csv`; n = 500, rotation, empirical p, alpha 0.05; SO-PLS and PLS 40 reps, B = 99; XGBoost 24 reps, B = 49, so rates are rough). Rejection rates:
+  - H0 true, linear: `sim_1` given Z1,Z2: SO-PLS 0.03, PLS 0.08, XGB 0.00; `sim_3` given Z1,Z2: 0.03 / 0.00 / 0.08; `sim_3` given Z1: 0.03 / 0.05 / 0.00. All near nominal or conservative.
+  - H0 true, nonlinear `sim_5` given Z1,Z2: SO-PLS 1.00, PLS 1.00, XGB 0.58. All fail; XGB least badly, as expected since it can learn some nonlinearity.
+  - Power: `sim_1` given Z1: SO-PLS 0.75, PLS 1.00, XGB 1.00. `sim_5` given Z1: 0.98 / 1.00 / 0.96 (not informative since H0 is also rejected). `sim_3` given Z2 (little or no dependence): 0.05 / 0.13 / 0.00.
+  - Time per test: SO-PLS 13-34 s, PLS 3-6 s, XGB 8-166 s (B = 49 for XGB, 99 for the others; one 166 s mean in the first cell includes cluster warm-up). PLS is the fastest, and more powerful than SO-PLS in `sim_1` here. A test of SO-PLS vs PLS power is only from one scenario.
+  - Conclusion: PLS.CCI.test looks like a good linear default (valid on the linear cells, fastest, power at least as good as SO-PLS here), but all three fail on nonlinear Z -> X, Y. Next: larger studies with effect sizes and `sim_2`, `sim_4`.
+
 ## Next
 - Fast test: calibrate the variance between "none" and Nadeau-Bengio (or use more rotations/splits) and check it on the four H0 scenarios and n = 1000/2000.
 - Decide the default for V components (one per block vs CV), then run a type I / power study for it.

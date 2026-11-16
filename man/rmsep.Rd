@@ -3,11 +3,13 @@
 \name{rmsep}
 \alias{rmsep}
 \title{Root Mean Square Error of Prediction
-@param}
+@param y numeric vector of observed values
+@param yhat numeric vector of predicted values}
 \usage{
 rmsep(y, yhat)
 }
 \description{
 Root Mean Square Error of Prediction
-@param
+@param y numeric vector of observed values
+@param yhat numeric vector of predicted values
 }

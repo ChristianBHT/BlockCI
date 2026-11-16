@@ -9,7 +9,7 @@ multixg_ci_test(
   formula,
   data,
   nfolds = 5,
-  nrounds = 300,
+  nrounds = 1000,
   early_stopping_rounds = 10,
   val_fraction = 0.2,
   params = list(),

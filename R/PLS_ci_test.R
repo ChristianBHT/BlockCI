@@ -40,16 +40,7 @@ pls_ci_test <- function(formula, data,
   if (stat == "dcor" && !requireNamespace("energy", quietly = TRUE))
     stop("The package 'energy' is required for stat = 'dcor'.")
   
-  ## ---- Statistikker ----
-  rv <- function(A, Bm) {
-    Sab <- crossprod(A, Bm)
-    sum(Sab^2) / sqrt(sum(crossprod(A)^2) * sum(crossprod(Bm)^2))
-  }
-  cc1  <- function(A, Bm) stats::cancor(A, Bm)$cor[1]
-  dcor <- function(A, Bm) energy::dcor(A, Bm)
-  stat_fun <- switch(stat, rv = rv, cc1 = cc1, dcor = dcor)
-  
-  ## ---- Fjern Z fra en blokk med PLS ----
+  ## ---- Remove Z from a block with PLS ----
   remove_Z <- function(M) {
     dat <- data.frame(M = I(M), Z = I(Z))
     k_max <- min(if (identical(ncomp, "auto")) max_ncomp else ncomp,
@@ -75,40 +66,19 @@ pls_ci_test <- function(formula, data,
   
   rx <- remove_Z(X)
   ry <- remove_Z(Y)
-  X_res <- scale(rx$res, scale = FALSE)
-  Y_res <- scale(ry$res, scale = FALSE)
-  
-  ## ---- Gruppering for betinget permutasjon ----
-  if (perm == "conditional") {
-    k  <- min(ncol(Z), 3)
-    pc <- stats::prcomp(Z, scale. = TRUE)$x[, seq_len(k), drop = FALSE]
-    n_groups <- max(2, n %/% group_size)
-    grp <- stats::kmeans(pc, centers = n_groups, nstart = 5)$cluster
-  }
-  permute_rows <- function() {
-    if (perm == "simple") return(sample.int(n))
-    idx <- seq_len(n)
-    for (g in unique(grp)) {
-      i <- which(grp == g)
-      idx[i] <- i[sample.int(length(i))]
-    }
-    idx
-  }
-  
-  ## ---- Permutasjonstest ----
-  obs   <- stat_fun(X_res, Y_res)
-  perms <- replicate(B, stat_fun(X_res, Y_res[permute_rows(), , drop = FALSE]))
-  p     <- (1 + sum(perms >= obs)) / (B + 1)
-  
+
+  ## ---- Permutation test on the residuals (shared helper in utils.R) ----
+  res <- .resid_perm_test(rx$res, ry$res, Z, stat, perm, B, group_size)
+
   structure(list(
-    statistic   = c(stat = obs),
-    p.value     = p,
+    statistic   = c(stat = res$obs),
+    p.value     = res$p,
     method      = sprintf("PLS residual test for b X ⫫ Y | Z (%s, %s permutation, %s residuals)",
                           stat, perm, resid),
     data.name   = paste(deparse(formula), collapse = ""),
     null.value  = NULL,
     alternative = "X and Y dependent given Z",
     ncomp       = c(X = rx$ncomp, Y = ry$ncomp),
-    perm_stats  = perms
+    perm_stats  = res$perms
   ), class = "htest")
 }

@@ -2,15 +2,19 @@
 title: "Block CI Notebook"
 output: html_notebook
 ---
+```{r}
+library(CausalBlocks)
+```
 
 Denne notebooken forsøker å dekke hva som er blitt gjort i prosjektet med å lage betinget uavhengighetstesting mellom matriser/blokker. Skrevet av meg selv, til meg selv, for økt forståelse
 
-Litt generelt; the no free lunch theorem gjelder i enda større grad nå. 
+Det er to generelle tilnærminger til problemet å teste null hypotesen $Y \perp X | Z$ (bruker $\perp$ som uavhengighetstegn) når $Y, X, Z$ er blokker med data, altså matriser. Det første tilnærmingen er å estimere to blokk regresjoner, nemlig $Y ~ Z$ og $X ~ Z$ for så å beregne to residualmatriser $R_Y$ og $R_X$, deretter teste om disse to residualmatrisene korrelerer. Dette er direkte analogt til en vanlig testmetodikk i det univariate tilfelle. Den andre tilnærmingen er å sammenligen prediksjonskraften til de to blokkregresjonsligningene $Y ~ X + Z$ og $Y ~ X^r + Z$, hvor $X^r$ er en rotert (eller permutert) versjon av $X$. Er prediksjonskraften til $Y ~ X + Z$ bedre enn  $Y ~ X^r + Z$, er det grunnlag for å forkaste null hypotesen siden under null skal ikke dette være tilfelle. 
 
 # Testing conditional independence between blocks
-
+Først presenteres metoder basert på å finne residualmatrisene ($R_Y$ og $R_X$)
 ## pls_ci_test (PLS blokk betinget uavhengighet) 
-Denne metoden er basert på at om $Y \perp X | Z$ (bruker $\perp$ som uavhengighetstegn) har vi generelt at residualene fra regresjonene $Y ~ Z$ og   $X ~ Z$ være ukorrlert. I funksjonen `PSL_ci_test` er $Y ~ Z$ og   $X ~ Z$ PLS regresjon mellom matriser. Etter estimering og residualene er beregnet, har man to matriser med residualer $R_Y$ og $R_X$. Korrelasjonen mellom matrisene kan måles med RV-koeffisient, første kanoniske korrelasjon eller distansekorrelasjon.
+
+I funksjonen `PSL_ci_test` er regresjonene $Y ~ Z$ og $X ~ Z$ gjort med PLS regresjon. Korrelasjonen mellom residualmatrisene kan måles med RV-koeffisient, første kanoniske korrelasjon eller distansekorrelasjon.
 
 RV-koeffisient er gitt med $RV(R_Y, R_X) = ||R_Y^TR_X||_F^2 /(||R_Y^T R_Y||_F ||R_X^T R_X||^2_F)$, hvor $||A||_F$ er Frobenius-normen til matrise A. RV-koeffisient er vektorvarianten av korrelasjon hvor $||R_Y^TR_X||_F^2$ tilsvarer Cov(Y,X) og $||R_Y^T R_Y||_F ||R_X^T R_X||^2_F$ tilsvarer $\sqrt(Var(Y)Var(X))$.  
 
@@ -22,7 +26,7 @@ Fordelen med å bruke distansekorrelasjon, er at den kan fange om ikke lineære 
 
 I alle tilfellen så sammenlignes beregnet verdi med en null-fordeling genereret ved å permutere residualene `B = ` ganger (vurdere rotasjon her). 
 
-### Simuleringseksempler
+### Eksempel
 Først så simulerer vi litt data. 
 ```{r}
 sim_1 <- function(n = 500, p = 6) {
@@ -55,16 +59,22 @@ test <- pls_ci_test(Y ~ X | Z1, data = dat, stat = "dcor")
 print(test)
 ```
 
-
 ## rosa_ci_test (PLS blokk betinget uavhengighet) 
-Denne metoden er lik som PLS testen, men istedet for PLS-regresjon benyttes ROSA (response-oriented sequential alternation `multiblock::rosa`) regresjon. Hensikten med denne metoden er at den er potensielt enda raskere enn PLS basert metode. 
+ROSA (response-oriented sequential alternation `multiblock::rosa`) regresjon. Hensikten med denne metoden er at den er potensielt enda raskere enn PLS basert metode. 
 
 ```{r}
 test <- rosa_ci_test(Y ~ X | Z1 + Z2, data = dat)
 print(test)
 ```
+## multixg_ci_test (XGBoost blokk betinget uavhengighet)
+Denne metoden er litt mer experimentell, og er basert på å bruke XGBoost til å fjerne Z fra X og Y. 
+
+```{r}
+multixg_ci_test(Y ~ X | Z1 + Z2, data = dat)
+```
+
 
 ## SOPLS.CCI.test()
-
+Denne metoden benytter SO-PLS (sequential and orthogonalized PLS) for å fjerne Z fra X og Y. SO-PLS er en metode som er laget for å håndtere flere blokker med data, og kan være mer effektiv enn PLS og ROSA i noen tilfeller.
 
  

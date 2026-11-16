@@ -43,7 +43,7 @@
 #'   `rounds` and the permutation statistics in `perm_stats`.
 #' @export
 multixg_ci_test <- function(formula, data,
-                            nfolds = 5, nrounds = 300, early_stopping_rounds = 10,
+                            nfolds = 5, nrounds = 1000, early_stopping_rounds = 10,
                             val_fraction = 0.2, params = list(),
                             stat = c("rv", "cc1", "dcor"),
                             perm = c("conditional", "simple"),
@@ -51,8 +51,7 @@ multixg_ci_test <- function(formula, data,
   stat <- match.arg(stat)
   perm <- match.arg(perm)
   if (!is.null(seed)) set.seed(seed)
-  .message_once("multixg_ci_test() is experimental and needs more work: it can reject true nulls far too often (see ?multixg_ci_test).")
-
+  .message_once("multixg_ci_test() is experimental.")
   cc <- .canonical(formula, data)            # parses formula, drops incomplete rows
   if (is.null(cc$V)) stop("formula must have a conditioning set: Y ~ X | Z")
   Z <- do.call(cbind, cc$V)
