@@ -51,3 +51,24 @@ test_that("Block.resid.test accepts a learner function and rejects unknown metho
   expect_equal(r$regression, "custom")
   expect_error(Block.resid.test(Y ~ X | Z1, d, method = "nope"), "unknown method")
 })
+
+test_that(".wgcm_weights builds k0 * ncol(Z) + 1 weights", {
+  set.seed(10)
+  Z <- matrix(rnorm(200 * 3), 200, 3)
+  W <- .wgcm_weights(Z, k0 = 7)
+  expect_equal(ncol(W), 7 * 3 + 1)
+  expect_true(all(W[, 1] == 1))
+  expect_true(all(W %in% c(-1, 0, 1)))
+})
+
+test_that("Block.resid.test with stat = 'wgcm' rejects a false null and runs under H0", {
+  set.seed(11)
+  d <- sim_1(n = 300, p = 2)
+  r <- Block.resid.test(Y ~ X | Z1, d, stat = "wgcm", B = 199, seed = 1)   # Z2 missing: H0 false
+  expect_s3_class(r, "BlockResid")
+  expect_lt(r$p.value, 0.05)
+  expect_equal(r$n_stats, 2 * 2 * (7 * 2 + 1))
+  r0 <- Block.resid.test(Y ~ X | Z1 + Z2, d, stat = "wgcm", B = 99, k0 = 3, seed = 1)
+  expect_true(r0$p.value > 0 && r0$p.value <= 1)
+  expect_equal(r0$n_stats, 2 * 2 * (3 * 4 + 1))
+})

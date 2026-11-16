@@ -29,6 +29,22 @@
 #'   `R/resid_learners.R`. New methods can be made available by name by adding them
 #'   to `.resid_methods` in that file.
 #'
+#' **Weighted GCM (`stat = "wgcm"`).** The multivariate weighted generalised
+#' covariance measure with fixed weights (mWGCM.fix; Scheidegger, Hoerrmann and
+#' Buehlmann 2022, JMLR 23, Appendix A.1). For every pair of a residual column of X
+#' (eps_j) and of Y (xi_l) and every weight function w_k(Z) it computes
+#' `T_jlk = sqrt(n) mean(eps_j xi_l w_k) / sd(eps_j xi_l w_k)`, and the statistic is
+#' `max |T_jlk|`. The weights (Appendix A.1.1) are the constant 1 and
+#' `sign(Z_d - a_dk)` for every column d of Z, with `a_dk` the empirical
+#' `k / (k0 + 1)` quantiles, `k = 1, ..., k0`. Weights that depend on Z let the test
+#' detect conditional dependence that changes sign across Z and averages to zero,
+#' which an unweighted covariance misses. Under the null the vector of `T_jlk` is
+#' approximately normal with the correlation matrix of the weighted products; the
+#' p-value is the share of `B` draws of `max |N(0, Sigma_hat)|` that reach the
+#' observed maximum. `perm` and `group_size` are not used. There are
+#' `ncol(X) * ncol(Y) * (k0 * ncol(Z) + 1)` statistics; time and memory grow with
+#' that number times n.
+#'
 #' With `resid = "cv"` (recommended) every row's residual comes from a model that
 #' did not use that row: the rows are split into `nfolds` folds, shared by the X and
 #' the Y regression. For PLS and ROSA the number of components is chosen by the CV
@@ -41,14 +57,19 @@
 #' @param method regression used to remove Z: `"PLS"` (default), `"ROSA"`, `"XGB"`,
 #'   `"RF"` (case-insensitive) or a residual learner function (see Details).
 #' @param stat dependence statistic between the residual matrices: `"rv"` (RV
-#'   coefficient), `"cc1"` (first canonical correlation) or `"dcor"` (distance
-#'   correlation; needs the energy package).
+#'   coefficient), `"cc1"` (first canonical correlation), `"dcor"` (distance
+#'   correlation; needs the energy package) or `"wgcm"` (weighted generalised
+#'   covariance measure, see Details). `"rv"`, `"cc1"` and `"dcor"` are calibrated
+#'   by permutation, `"wgcm"` by a Gaussian approximation.
 #' @param resid `"cv"` (cross-validated / cross-fitted residuals, recommended) or
 #'   `"fitted"` (in-sample residuals).
 #' @param perm `"conditional"` (permute residual rows within groups of rows with
 #'   similar Z) or `"simple"` (permute all rows).
-#' @param B number of permutations.
+#' @param B number of permutations (for `stat = "wgcm"`: number of draws from the
+#'   Gaussian approximation).
 #' @param group_size desired group size for `perm = "conditional"`.
+#' @param k0 (`stat = "wgcm"`) number of quantile-based weight functions per column
+#'   of Z (default 7, as in Scheidegger et al. 2022).
 #' @param nfolds number of folds for `resid = "cv"` and for choosing the number of
 #'   components.
 #' @param ncomp number of PLS or ROSA components, or `"auto"` (chosen by CV,
@@ -69,8 +90,9 @@
 #'   p-value, the regression `regression`, the complexity of the X and the Y
 #'   regression in `complexity` (components, rounds or trees), the mean number of
 #'   PLS components of the linear step in `linear_ncomp` (XGB and RF with
-#'   `linear_first = TRUE`, otherwise `NA`) and the permutation statistics in
-#'   `perm_stats`.
+#'   `linear_first = TRUE`, otherwise `NA`), the permutation statistics (for
+#'   `"wgcm"`: the simulated maxima) in `perm_stats`, and for `"wgcm"` the number of
+#'   statistics in the maximum in `n_stats`.
 #' @examples
 #' \dontrun{
 #' data <- sim_1(n = 500, p = 4)
@@ -81,15 +103,16 @@
 #' Block.resid.test(Y ~ X | Z1 + Z2, data, method = "XGB", B = 199,
 #'                  method_args = list(nrounds = 300))
 #' Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", linear_first = FALSE)  # RF alone
+#' Block.resid.test(Y ~ X | Z1 + Z2, data, stat = "wgcm")                # weighted GCM
 #' }
 #' @export
 Block.resid.test <- function(formula, data, method = "PLS",
-                             stat = c("rv", "cc1", "dcor"),
+                             stat = c("rv", "cc1", "dcor", "wgcm"),
                              resid = c("cv", "fitted"),
                              perm = c("conditional", "simple"),
                              B = 999, group_size = 10, nfolds = 10,
                              ncomp = "auto", max_ncomp = 10, scale = TRUE,
-                             linear_first = TRUE, method_args = list(), seed = NA) {
+                             linear_first = TRUE, k0 = 7, method_args = list(), seed = NA) {
   stat  <- match.arg(stat)
   resid <- match.arg(resid)
   perm  <- match.arg(perm)
@@ -110,15 +133,16 @@ Block.resid.test <- function(formula, data, method = "PLS",
   rx <- learner(cc$X, cc$V, folds, opts)
   ry <- learner(cc$Y, cc$V, folds, opts)
   Z <- do.call(cbind, cc$V)
-  res <- .resid_perm_test(rx$res, ry$res, Z, stat, perm, B, group_size)
+  res <- .resid_perm_test(rx$res, ry$res, Z, stat, perm, B, group_size, k0 = k0)
+  calib <- if (stat == "wgcm") "Gaussian approximation" else paste(perm, "permutation")
 
   two_step <- linear_first && method_name %in% c("XGB", "RF")
   reg_label <- if (two_step) paste0("PLS + ", method_name) else method_name
   structure(list(
     statistic   = stats::setNames(res$obs, toupper(stat)),
     p.value     = res$p,
-    method      = sprintf("Block residual test for Y _||_ X | Z (%s regression, %s, %s permutation, %s residuals)",
-                          reg_label, stat, perm, resid),
+    method      = sprintf("Block residual test for Y _||_ X | Z (%s regression, %s, %s, %s residuals)",
+                          reg_label, stat, calib, resid),
     data.name   = paste(deparse(formula), collapse = ""),
     alternative = "X and Y are dependent given Z",
     regression  = method_name,
@@ -126,6 +150,7 @@ Block.resid.test <- function(formula, data, method = "PLS",
     linear_ncomp = c(X = rx$lin_ncomp %||% NA_real_, Y = ry$lin_ncomp %||% NA_real_),
     linear_first = two_step,
     perm_stats  = res$perms,
-    B = B, nfolds = nfolds, resid = resid, perm = perm, stat = stat
+    n_stats = res$n_stats,
+    B = B, nfolds = nfolds, resid = resid, perm = if (stat == "wgcm") NA else perm, stat = stat
   ), class = c("BlockResid", "htest"))
 }

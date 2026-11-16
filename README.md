@@ -191,6 +191,19 @@ RF uses out-of-bag predictions of one forest (`method_args = list(oob = FALSE)`
 cross-fits over the folds instead). `perm = "conditional"` (default) permutes residual rows only
 within groups of rows with similar Z.
 
+`stat = "wgcm"` uses the multivariate weighted generalised covariance measure with
+fixed weights (mWGCM.fix, Scheidegger, Hörrmann and Bühlmann 2022, JMLR 23, Appendix
+A.1) instead of a permutation statistic: for every pair of residual columns (X_j, Y_l)
+and every weight w_k(Z) (the constant and `sign(Z_d - quantile)` at `k0 = 7` quantiles
+per column of Z) a studentised mean of `eps_j * xi_l * w_k`, the maximum of their
+absolute values, and a p-value from a Gaussian approximation (`B` draws). The weights
+let it detect dependence that changes sign across Z.
+
+```r
+Block.resid.test(Y ~ X | Z1 + Z2, data, stat = "wgcm")
+Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", stat = "wgcm", k0 = 3)
+```
+
 A new regression is a *residual learner* `function(M, Zl, folds, opts)` returning
 `list(res, complexity)`; it can be passed directly as `method` or added by name to
 `.resid_methods` in `R/resid_learners.R`.

@@ -169,10 +169,12 @@ rmsep <- function(y, yhat) sqrt(mean((y - yhat)^2))
 
 # Permutation test of dependence between the residual matrices X_res and Y_res.
 # 'conditional': rows are permuted only within clusters of similar Z.
-.resid_perm_test <- function(X_res, Y_res, Z, stat, perm, B, group_size) {
+.resid_perm_test <- function(X_res, Y_res, Z, stat, perm, B, group_size, k0 = 7) {
   n <- nrow(X_res)
   X_res <- scale(X_res, scale = FALSE)
   Y_res <- scale(Y_res, scale = FALSE)
+  # the weighted GCM has its own (Gaussian) null distribution; no permutations
+  if (stat == "wgcm") return(.wgcm_test(X_res, Y_res, Z, B, k0))
   stat_fun <- .resid_stat_fun(stat)
   if (perm == "conditional") {
     k  <- min(ncol(Z), 3)
@@ -192,4 +194,64 @@ rmsep <- function(y, yhat) sqrt(mean((y - yhat)^2))
   obs   <- stat_fun(X_res, Y_res)
   perms <- replicate(B, stat_fun(X_res, Y_res[permute_rows(), , drop = FALSE]))
   list(obs = obs, perms = perms, p = (1 + sum(perms >= obs)) / (B + 1))
+}
+
+# ---- weighted generalised covariance measure (multivariate, fixed weights) --------
+# Scheidegger, Hoerrmann and Buehlmann (2022), "The weighted generalised covariance
+# measure", JMLR 23; Appendix A.1 (mWGCM.fix) with the default weights of A.1.1.
+
+# Weight functions evaluated at the rows of Z: the constant 1 and, for every column
+# d of Z, sign(z_d - a_dk) with a_dk the empirical k / (k0 + 1) quantile of Z_d,
+# k = 1, ..., k0 (k0 * ncol(Z) + 1 weights; duplicates, e.g. from discrete Z, are
+# removed).
+.wgcm_weights <- function(Z, k0 = 7) {
+  Z <- as.matrix(Z)
+  W <- lapply(seq_len(ncol(Z)), function(d) {
+    a <- unique(stats::quantile(Z[, d], probs = seq_len(k0) / (k0 + 1), names = FALSE))
+    vapply(a, function(ak) sign(Z[, d] - ak), numeric(nrow(Z)))
+  })
+  W <- cbind(1, do.call(cbind, W))
+  W[, !duplicated(t(W)), drop = FALSE]
+}
+
+# mWGCM.fix test. For every pair (X_j, Y_l) of residual columns and every weight
+# w_k: R_i = eps_ij * xi_il * w_k(Z_i), T_jlk = sqrt(n) mean(R) / sd(R) (sd with
+# divisor n), and S = max |T_jlk|. Under H0 the vector of T_jlk is approximately
+# N(0, Sigma), Sigma the correlation matrix of the products. The p-value is
+# P(max |N(0, Sigma_hat)| >= S), from B Gaussian multiplier draws
+# T* = Rc' g / sqrt(n), g ~ N(0, I_n), Rc the centred and scaled products (this has
+# covariance exactly Sigma_hat, without forming Sigma_hat). The products are
+# rebuilt per pair and the draws are made in chunks, to limit memory.
+.wgcm_test <- function(X_res, Y_res, Z, B, k0 = 7, chunk = 200) {
+  n <- nrow(X_res)
+  W <- .wgcm_weights(Z, k0)
+  pairs <- expand.grid(j = seq_len(ncol(X_res)), l = seq_len(ncol(Y_res)))
+  prods <- function(j, l) {
+    R <- (X_res[, j] * Y_res[, l]) * W                 # n x (number of weights)
+    m <- colMeans(R)
+    s <- sqrt(pmax(colMeans(R^2) - m^2, 0))
+    ok <- s > 0
+    Tstat <- numeric(length(m)); Tstat[ok] <- sqrt(n) * m[ok] / s[ok]
+    Rc <- sweep(R, 2, m)
+    Rc <- sweep(Rc, 2, ifelse(ok, s, Inf), "/")         # columns with sd 0 become 0
+    list(T = Tstat, Rc = Rc)
+  }
+  S_obs <- 0
+  S_sim <- numeric(B)
+  done <- 0L
+  while (done < B) {
+    b <- min(chunk, B - done)
+    G <- matrix(stats::rnorm(n * b), n, b)               # the same draws for all pairs
+    mx <- numeric(b)
+    for (r in seq_len(nrow(pairs))) {
+      pr <- prods(pairs$j[r], pairs$l[r])
+      if (done == 0L) S_obs <- max(S_obs, abs(pr$T))
+      Ts <- crossprod(pr$Rc, G) / sqrt(n)                # (number of weights) x b
+      mx <- pmax(mx, apply(abs(Ts), 2, max))
+    }
+    S_sim[done + seq_len(b)] <- mx
+    done <- done + b
+  }
+  list(obs = S_obs, perms = S_sim, p = (1 + sum(S_sim >= S_obs)) / (B + 1),
+       n_stats = ncol(W) * nrow(pairs))
 }

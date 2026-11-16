@@ -8,7 +8,7 @@ Block.resid.test(
   formula,
   data,
   method = "PLS",
-  stat = c("rv", "cc1", "dcor"),
+  stat = c("rv", "cc1", "dcor", "wgcm"),
   resid = c("cv", "fitted"),
   perm = c("conditional", "simple"),
   B = 999,
@@ -18,6 +18,7 @@ Block.resid.test(
   max_ncomp = 10,
   scale = TRUE,
   linear_first = TRUE,
+  k0 = 7,
   method_args = list(),
   seed = NA
 )
@@ -33,8 +34,10 @@ be given after the bar, e.g. \code{Y ~ X | Z1 + Z2}.}
 \code{"RF"} (case-insensitive) or a residual learner function (see Details).}
 
 \item{stat}{dependence statistic between the residual matrices: \code{"rv"} (RV
-coefficient), \code{"cc1"} (first canonical correlation) or \code{"dcor"} (distance
-correlation; needs the energy package).}
+coefficient), \code{"cc1"} (first canonical correlation), \code{"dcor"} (distance
+correlation; needs the energy package) or \code{"wgcm"} (weighted generalised
+covariance measure, see Details). \code{"rv"}, \code{"cc1"} and \code{"dcor"} are calibrated
+by permutation, \code{"wgcm"} by a Gaussian approximation.}
 
 \item{resid}{\code{"cv"} (cross-validated / cross-fitted residuals, recommended) or
 \code{"fitted"} (in-sample residuals).}
@@ -42,7 +45,8 @@ correlation; needs the energy package).}
 \item{perm}{\code{"conditional"} (permute residual rows within groups of rows with
 similar Z) or \code{"simple"} (permute all rows).}
 
-\item{B}{number of permutations.}
+\item{B}{number of permutations (for \code{stat = "wgcm"}: number of draws from the
+Gaussian approximation).}
 
 \item{group_size}{desired group size for \code{perm = "conditional"}.}
 
@@ -59,6 +63,9 @@ separately for X and Y). Also used by the linear step of \code{"XGB"} and \code{
 \item{linear_first}{(\code{"XGB"}, \code{"RF"}) remove the linear part of Z with PLS before
 the tree learner (default \code{TRUE}); ignored for \code{"PLS"} and \code{"ROSA"}.}
 
+\item{k0}{(\code{stat = "wgcm"}) number of quantile-based weight functions per column
+of Z (default 7, as in Scheidegger et al. 2022).}
+
 \item{method_args}{named list of method-specific options. For \code{"XGB"}: \code{nrounds}
 (number of boosting rounds, 1000) and \code{params} (list merged into
 \verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}). For \code{"RF"}: \code{oob} (\code{TRUE})
@@ -73,8 +80,9 @@ an object of class \code{c("BlockResid", "htest")} with the statistic, the
 p-value, the regression \code{regression}, the complexity of the X and the Y
 regression in \code{complexity} (components, rounds or trees), the mean number of
 PLS components of the linear step in \code{linear_ncomp} (XGB and RF with
-\code{linear_first = TRUE}, otherwise \code{NA}) and the permutation statistics in
-\code{perm_stats}.
+\code{linear_first = TRUE}, otherwise \code{NA}), the permutation statistics (for
+\code{"wgcm"}: the simulated maxima) in \code{perm_stats}, and for \code{"wgcm"} the number of
+statistics in the maximum in \code{n_stats}.
 }
 \description{
 Tests whether the block Y is independent of the block X given the blocks Z
@@ -110,6 +118,22 @@ predictions unless \code{method_args = list(oob = FALSE)}.
 to \code{.resid_methods} in that file.
 }
 
+\strong{Weighted GCM (\code{stat = "wgcm"}).} The multivariate weighted generalised
+covariance measure with fixed weights (mWGCM.fix; Scheidegger, Hoerrmann and
+Buehlmann 2022, JMLR 23, Appendix A.1). For every pair of a residual column of X
+(eps_j) and of Y (xi_l) and every weight function w_k(Z) it computes
+\verb{T_jlk = sqrt(n) mean(eps_j xi_l w_k) / sd(eps_j xi_l w_k)}, and the statistic is
+\verb{max |T_jlk|}. The weights (Appendix A.1.1) are the constant 1 and
+\code{sign(Z_d - a_dk)} for every column d of Z, with \code{a_dk} the empirical
+\code{k / (k0 + 1)} quantiles, \verb{k = 1, ..., k0}. Weights that depend on Z let the test
+detect conditional dependence that changes sign across Z and averages to zero,
+which an unweighted covariance misses. Under the null the vector of \code{T_jlk} is
+approximately normal with the correlation matrix of the weighted products; the
+p-value is the share of \code{B} draws of \verb{max |N(0, Sigma_hat)|} that reach the
+observed maximum. \code{perm} and \code{group_size} are not used. There are
+\code{ncol(X) * ncol(Y) * (k0 * ncol(Z) + 1)} statistics; time and memory grow with
+that number times n.
+
 With \code{resid = "cv"} (recommended) every row's residual comes from a model that
 did not use that row: the rows are split into \code{nfolds} folds, shared by the X and
 the Y regression. For PLS and ROSA the number of components is chosen by the CV
@@ -125,5 +149,6 @@ Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", B = 199,   # PLS, then RF
 Block.resid.test(Y ~ X | Z1 + Z2, data, method = "XGB", B = 199,
                  method_args = list(nrounds = 300))
 Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", linear_first = FALSE)  # RF alone
+Block.resid.test(Y ~ X | Z1 + Z2, data, stat = "wgcm")                # weighted GCM
 }
 }

@@ -144,21 +144,34 @@
 
   fit_pred <- function(blocks, k_fixed) {
     bn <- paste0("B", seq_along(blocks))
-    kmax <- min(if (auto) max_ncomp[1] else k_fixed, sum(vapply(blocks, ncol, 1L)), ntr - 2)
-    dtr <- c(list(Y = Ytr), stats::setNames(lapply(blocks, function(m) m[train, , drop = FALSE]), bn))
+    # standardise every block column with the TRAINING means (and sds if scale), and
+    # fit rosa without its own scaling; predictions are then computed directly from
+    # the coefficients (not with predict()), so the centring and scaling of the test
+    # rows are under our control
+    Xall <- do.call(cbind, blocks)
+    blk <- rep(seq_along(blocks), vapply(blocks, ncol, 1L))
+    mu <- colMeans(Xall[train, , drop = FALSE])
+    sdv <- if (scale) apply(Xall[train, , drop = FALSE], 2, stats::sd) else rep(1, ncol(Xall))
+    sdv[!is.finite(sdv) | sdv == 0] <- 1
+    Xs <- sweep(sweep(Xall, 2, mu), 2, sdv, "/")
+    kmax <- min(if (auto) max_ncomp[1] else k_fixed, ncol(Xall), ntr - 2)
+    dtr <- c(list(Y = Ytr), stats::setNames(lapply(seq_along(blocks), function(b)
+      Xs[train, blk == b, drop = FALSE]), bn))
     fml <- stats::as.formula(paste("Y ~", paste(bn, collapse = " + ")))
     cv_args <- if (auto) list(validation = "CV", segments = min(cv_segments, ntr)) else list()
-    fit <- do.call(multiblock::rosa, c(list(fml, data = dtr, ncomp = kmax, scale = scale), cv_args))
+    fit <- do.call(multiblock::rosa, c(list(fml, data = dtr, ncomp = kmax, scale = FALSE), cv_args))
     nc <- min(kmax, fit$ncomp)
     if (auto) {   # component count with the lowest CV error (summed over Y columns)
       cvp <- fit$validation$pred                                   # ntr x q x ncomp
       nc <- which.min(vapply(seq_len(dim(cvp)[3]),
                              function(a) sum((Ytr - matrix(cvp[, , a], ntr))^2), 0))
     }
-    # predictor blocks cbind-ed in the order of the formula
-    Xte <- do.call(cbind, lapply(blocks, function(m) m[test, , drop = FALSE]))
-    pr <- stats::predict(fit, newdata = Xte, ncomp = nc)           # nt x q x 1
-    list(pred = matrix(pr[, , 1], nt, q), nc = as.integer(nc))
+    # prediction = training mean of Y + (centred test rows) %*% coefficients
+    B <- matrix(stats::coef(fit, ncomp = nc, intercept = FALSE), ncol(Xall), q)
+    xm <- colMeans(Xs[train, , drop = FALSE])                      # 0 up to rounding
+    pred <- sweep(Xs[test, , drop = FALSE], 2, xm) %*% B
+    pred <- sweep(pred, 2, colMeans(Ytr), "+")
+    list(pred = matrix(pred, nt, q), nc = as.integer(nc))
   }
 
   if (is.null(Vl)) {   # unconditional test: M0 is the training mean (0 on the Ys scale)

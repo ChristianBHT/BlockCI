@@ -68,9 +68,64 @@ crossfit <- function(M) {
   list(res = res, rounds = mean(rounds))
 
 
-rs <- .multixg_residuals(cc$X, cc$Y, Z, nfolds, nrounds, early_stopping_rounds                           val_fraction, params)
-
-
-res <- .resid_perm_test(rs$res_x, rs$res_y, Z, stat, perm, B, group_size)
+  # Cross-fitted prediction of M from Z: linear PLS first, then a multi-output
+  # random forest on the linear residuals. Returns the predictions for all rows,
+  # each made by models trained on the other folds.
+  pls_rf_crossfit <- function(M, Z, folds, num.trees = 2000, min.node.size = 3) {
+    pred <- matrix(NA_real_, nrow(M), ncol(M))
+    for (k in unique(folds)) {
+      train <- which(folds != k)
+      test  <- which(folds == k)
+      
+      # 1. linear part: PLS with all components (= OLS) on the training rows
+      dtr <- data.frame(M = I(M[train, , drop = FALSE]), Z = I(Z[train, , drop = FALSE]))
+      dte <- data.frame(Z = I(Z[test, , drop = FALSE]))
+      lin <- pls::plsr(M ~ Z, ncomp = ncol(Z), data = dtr)
+      lin_train <- predict(lin, ncomp = ncol(Z))[, , 1]                 # fitted, training rows
+      lin_test  <- predict(lin, newdata = dte, ncomp = ncol(Z))[, , 1]  # held-out rows
+      
+      # 2. nonlinear remainder: forest on the training residuals of the linear fit
+      rf <- multi_regression_forest(
+        X = Z[train, , drop = FALSE],
+        Y = M[train, , drop = FALSE] - lin_train,
+        num.trees = num.trees,
+        min.node.size = min.node.size
+      )
+      pred[test, ] <- lin_test + predict(rf, newdata = Z[test, , drop = FALSE])$predictions
+    }
+    pred
+  }
+  
+  rv <- function(A, B) {
+    Sab <- crossprod(A, B)
+    sum(Sab^2) / sqrt(sum(crossprod(A)^2) * sum(crossprod(B)^2))
+  }
+  
+  n_sim  <- 40
+  B      <- 1000
+  pvalues <- numeric(n_sim)
+  
+  for (i in seq_len(n_sim)) {
+    data <- sim_1(1000, p = 6)
+    data$X <- scale(data$X, center = TRUE, scale = FALSE)
+    data$Y <- scale(data$Y, center = TRUE, scale = FALSE)
+    Z <- scale(cbind(data$Z1), center = TRUE, scale = FALSE)
+    
+    n <- nrow(data$X)
+    folds <- sample(rep(1:5, length.out = n))      # same folds for X and Y
+    
+    resid_X <- data$X - pls_rf_crossfit(data$X, Z, folds)
+    resid_Y <- data$Y - pls_rf_crossfit(data$Y, Z, folds)
+    
+    rv_obs <- rv(resid_X, resid_Y)
+    null_dist <- replicate(B, rv(resid_X, resid_Y[sample(n), , drop = FALSE]))
+    pvalues[i] <- (1 + sum(null_dist >= rv_obs)) / (B + 1)
+    
+    cat(sprintf("run %2d: RV = %.4f, null mean = %.4f, p = %.3f\n",
+                i, rv_obs, mean(null_dist), pvalues[i]))
+  }
+  
+  mean(pvalues < 0.05)   # rejection rate under H0: should be about 0.05
+  
   
   
