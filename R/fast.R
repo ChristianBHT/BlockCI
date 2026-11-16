@@ -3,7 +3,9 @@
 #' Instead of building a null distribution from R refits, this compares the model
 #' fitted on the real X with the same model fitted on a resampled X* (rotation by
 #' default) using the SAME train/test split, and repeats this for `nsplit` splits.
-#' The regression is chosen with `method`, as in [Block.CCI.test()].
+#' The regression is chosen with `method`, as in [Block.CCI.test()]: `"SOPLS"`
+#' (default), `"PLS"`, `"ROSA"`, `"RF"` (multi-output random forest), `"XGB"` or a
+#' learner function.
 #'
 #' For split `k` and each test row `i`, `d_ki = l1_ki - l0_ki` is the change in
 #' squared error from adding X (negative = X helps), and `d*_ki` is the same for
@@ -17,9 +19,21 @@
 #' independence.
 #'
 #' Tuning (components, ...) is done as in [cci_test_gen()], on the training rows
-#' only, separately for X and X*.
+#' only, separately for X and X*. M0 (Y ~ V) does not depend on X, so it is fitted
+#' once per split and reused for X*; only M1 (Y ~ V + X*) is refitted. Hence
+#' `d_ki - d*_ki = l1_ki - l1*_ki`: the test compares the model with X directly
+#' with the same model with X* on the same rows.
 #'
 #' @inheritParams Block.CCI.test
+#' @examples
+#' \dontrun{
+#' data <- sim_1(n = 500, p = 4)
+#' Block.CCI.fast(Y ~ X | Z1 + Z2, data)                      # SO-PLS
+#' Block.CCI.fast(Y ~ X | Z1, data, method = "PLS")
+#' Block.CCI.fast(Y ~ X | Z1, data, method = "ROSA", nsplit = 20)
+#' Block.CCI.fast(Y ~ X | Z1 + Z2, data, method = "RF",
+#'                method_args = list(num.trees = 500, num.threads = NULL))
+#' }
 #' @param p training fraction of each split
 #' @param nsplit number of train/test splits K (at least 2)
 #' @param nrot number of resampled copies X* per split, averaged (default 1)
@@ -30,6 +44,7 @@
 #'   `"nadeau-bengio"`: corrected resampled t,
 #'   `se = sqrt((1/K + n_test/n_train) * var(delta))`; valid but conservative with
 #'   low power.
+#' @param progress show a progress bar over the `nsplit` splits
 #' @return object of class `BlockCCIfast` (a list with `statistic` (t),
 #'   `p.value`, `delta` (per split), `T_obs` and `T_null` (mean over splits,
 #'   RMSEP scale), `complexity` (mean over splits), ...)
@@ -39,7 +54,7 @@ Block.CCI.fast <- function(formula, data, method = "SOPLS",
                            p = 0.5, nsplit = 10, nrot = 1, ncomp = "auto", scale = TRUE,
                            max_ncomp = NULL, cv_segments = 5, method_args = list(),
                            correction = c("none", "nadeau-bengio"),
-                           group_size = 10, seed = NA) {
+                           group_size = 10, seed = NA, progress = TRUE) {
   resampling <- match.arg(resampling)
   correction <- match.arg(correction)
   learner <- .get_learner(method)
@@ -50,20 +65,25 @@ Block.CCI.fast <- function(formula, data, method = "SOPLS",
   Vm <- if (is.null(cc$V)) NULL else do.call(cbind, cc$V)
   n <- nrow(cc$Y); n_tr <- floor(p * n); n_te <- n - n_tr
   resample <- .make_resampler(cc$X, Vm, resampling, group_size)
-  gen <- function(dat, split)
+  gen <- function(dat, split, yh0 = NULL)
     cci_test_gen(cc$formula, dat, method = learner, p = p, ncomp = ncomp, scale = scale,
                  max_ncomp = max_ncomp, cv_segments = cv_segments,
-                 method_args = method_args, split = split, losses = TRUE)
+                 method_args = method_args, split = split, losses = TRUE, yh0 = yh0)
 
+  if (progress) {
+    pb <- txtProgressBar(0, nsplit, style = 3)
+    on.exit(close(pb), add = TRUE)
+  }
   per_split <- lapply(seq_len(nsplit), function(k) {
     split <- sample.int(n, n_tr)
-    obs <- gen(cc$data, split)
+    obs <- gen(cc$data, split)                 # M0 (Y ~ V) and M1 (Y ~ V + X)
     rots <- lapply(seq_len(nrot), function(i) {
       dat <- cc$data
       dat$X <- resample()
-      gen(dat, split)
+      gen(dat, split, yh0 = obs$yh0)           # M0 does not depend on X: reuse it, fit M1 only
     })
     dstar <- rowMeans(vapply(rots, function(r) r$l1 - r$l0, numeric(n_te)))
+    if (progress) setTxtProgressBar(pb, k)
     list(delta = mean((obs$l1 - obs$l0) - dstar),
          T_obs = obs$stats[["T"]],
          T_null = mean(vapply(rots, function(r) r$stats[["T"]], 0)),

@@ -45,13 +45,12 @@ I `dat` er det fire blokker/matriser med data (`Z1, Z2, X, Y`). Alle matrisene e
 
 ```{r}
 set.seed(2)
-test1 <- pls_ci_test(Y ~ X | Z1 + Z2, data = dat)
-print(test1)
+Block.resid.test(Y ~ X | Z1 + Z2, data = dat)
+
 ```
 Så en hypotese som ikke holder;
 ```{r}
-test2 <- pls_ci_test(Y ~ X | Z1, data = dat)
-print(test2)
+Block.resid.test(Y ~ X | Z1, data = dat)
 ```
 Basert på p-verdier forkastes null hypotesen korrekt. Om man vil endre hvordan korrelasjon beregnes, bruker man argumentet `stat`.
 ```{r}

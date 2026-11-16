@@ -1,4 +1,4 @@
-# Computation time of ONE test for pls_ci_test() and rosa_ci_test() as the data grow:
+# Computation time of ONE test for Block.resid.test() with method = "PLS" and "ROSA" as the data grow:
 #   A) high N        : n = 1e3 ... 3e6 rows,       Z has 20 variables, X and Y 4 each
 #   B) many Z vars   : p_z = 20 ... 5000 variables, n = 1000
 #   C) many X/Y vars : q = 4 ... 1000 variables in X and in Y, n = 1000, p_z = 20
@@ -18,8 +18,9 @@ if (file.exists(out)) file.remove(out)
 
 settings <- list(
   fast = list(ncomp = 12, resid = "fitted", perm = "simple", B = 199),
-  cv   = list(ncomp = "auto", max_ncomp = 12, resid = "cv", perm = "simple", B = 199, segments = 5))
-tests <- list(pls = pls_ci_test, rosa = rosa_ci_test)
+  cv   = list(ncomp = "auto", max_ncomp = 12, resid = "cv", perm = "simple", B = 199, nfolds = 5))
+tests <- list(pls  = function(...) Block.resid.test(..., method = "PLS"),
+              rosa = function(...) Block.resid.test(..., method = "ROSA"))
 studies <- list(
   A_high_N      = list(var = "n",   sizes = c(1e3, 1e4, 1e5, 3e5, 1e6, 3e6),
                        args = function(s) list(n = s, p_z = 20, q_x = 4, q_y = 4)),

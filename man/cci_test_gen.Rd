@@ -2,20 +2,21 @@
 % Please edit documentation in R/cci_test_gen.R
 \name{cci_test_gen}
 \alias{cci_test_gen}
-\title{One Monte Carlo CV statistic for the CCI-type tests}
+\title{One Monte Carlo CV statistic for the block CCI test}
 \usage{
 cci_test_gen(
   formula,
   data,
+  method = "SOPLS",
   p = 0.75,
   ncomp = "auto",
   scale = TRUE,
-  max_ncomp = c(6, 10),
+  max_ncomp = NULL,
   cv_segments = 5,
+  method_args = list(),
   split = NULL,
   losses = FALSE,
-  learner = c("sopls", "xgboost", "pls"),
-  learner_args = list()
+  yh0 = NULL
 )
 }
 \arguments{
@@ -26,43 +27,54 @@ after the bar is its own V block.}
 \item{data}{named list of matrices (or a data.frame). Rows with missing values
 in any used variable are dropped.}
 
+\item{method}{regression method: \code{"SOPLS"} (default), \code{"PLS"}, \code{"ROSA"}, \code{"XGB"},
+\code{"RF"} (case-insensitive) or a learner function (see Details).}
+
 \item{p}{training fraction}
 
-\item{ncomp}{\code{"auto"} (chosen by inner CV as described above) or fixed numbers
-of components. For \code{learner = "sopls"}: \code{c(a_1, ..., a_k, b)}, the components
-for each of the k V blocks, then the components added from X (for a test
-without V, \code{c(0, b)}). For \code{learner = "pls"}: \code{c(a, b)}, the components of
-Y ~ V and of Y ~ V + X. Not used by \code{"xgboost"}.}
+\item{ncomp}{(\code{"SOPLS"}, \code{"PLS"}, \code{"ROSA"}) \code{"auto"} (chosen by inner CV as described
+above) or fixed numbers of components. For \code{"SOPLS"}: \code{c(a_1, ..., a_k, b)},
+the components for each of the k V blocks, then the components added from X
+(for a test without V, \code{c(0, b)}). For \code{"PLS"} and \code{"ROSA"}: \code{c(a, b)}, the
+components of Y ~ V and of Y ~ V + X.}
 
-\item{scale}{scale the blocks (\code{"sopls"} and \code{"pls"})}
+\item{scale}{scale the blocks (\code{"SOPLS"}, \code{"PLS"}, \code{"ROSA"}) and standardise Y}
 
-\item{max_ncomp}{maximum number of components searched when \code{ncomp = "auto"}.
-\code{"sopls"} uses the second element (maximum number of X components); \code{"pls"}
-uses the first element (maximum for each of the two models).}
+\item{max_ncomp}{(\code{"SOPLS"}, \code{"PLS"}, \code{"ROSA"}) maximum number of components
+searched when \code{ncomp = "auto"}: for \code{"SOPLS"} the maximum number of X
+components (default 5), for \code{"PLS"} and \code{"ROSA"} the maximum for each of the
+two models (default 10). \code{NULL} uses the method's default.}
 
-\item{cv_segments}{number of CV segments for the inner selection (\code{"sopls"} and
-\code{"pls"})}
+\item{cv_segments}{(\code{"SOPLS"}, \code{"PLS"}, \code{"ROSA"}) number of CV segments for the inner
+selection}
+
+\item{method_args}{named list of method-specific options. For \code{"XGB"}:
+\code{nrounds} (number of boosting rounds, 1000) and \code{params} (a list merged into
+the xgboost parameters, defaults \verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}).
+For \code{"RF"}: any arguments of \code{\link[grf:multi_regression_forest]{grf::multi_regression_forest()}}, e.g.
+\code{num.trees} (2000), \code{num.threads} (1; \code{NULL} uses all cores),
+\code{min.node.size}, \code{mtry}, \code{sample.fraction} or \code{honesty}. A learner function
+receives the list as \code{opts$args}.}
 
 \item{split}{training rows (optional; if \code{NULL} a random split of \code{floor(p * n)}
-rows is drawn). \code{\link[=SOPLS.CCI.fast]{SOPLS.CCI.fast()}} uses it to fit X and X* on the same split.}
+rows is drawn). \code{\link[=Block.CCI.fast]{Block.CCI.fast()}} uses it to fit X and X* on the same split.}
 
 \item{losses}{if \code{TRUE}, return per-test-row squared errors as well}
 
-\item{learner}{\code{"sopls"} (default), \code{"xgboost"} or \code{"pls"}}
-
-\item{learner_args}{(\code{learner = "xgboost"} only) named list of options:
-\code{nrounds} (number of boosting rounds, 1000) and \code{params} (a list merged into
-the xgboost parameters, defaults
-\verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}).}
+\item{yh0}{(advanced) test-row predictions of M0 (Y ~ V) from an earlier call
+with the same \code{data} (apart from X), \code{split} and settings, as returned with
+\code{losses = TRUE}. M0 does not depend on X, so it is then not refitted: only M1
+is fitted. \code{\link[=Block.CCI.fast]{Block.CCI.fast()}} uses this for the resampled X*.}
 }
 \value{
 named vector \verb{M0, M1, T = M1 - M0, a, b} (RMSEP scale). \code{a} and \code{b} are
-the complexities chosen by the learner: for \code{"sopls"} the total number of V
-components and the number of added X components; for \code{"pls"} the components
-of Y ~ V and of Y ~ V + X; for \code{"xgboost"} the number of boosting rounds of
-the two models (\code{a = 0} without V). With \code{losses = TRUE}: a list with \code{stats} (that
-vector), \code{test} (the test rows), \code{l0} and \code{l1} (per-test-row squared errors,
-summed over the Y columns, of M0 and M1).
+the complexities of M0 and M1: for \code{"SOPLS"} the total number of V components
+and the number of added X components; for \code{"PLS"} and \code{"ROSA"} the components
+of Y ~ V and of Y ~ V + X; for \code{"XGB"} the number of boosting rounds and for \code{"RF"} the
+number of trees (\code{a = 0} without V). With \code{losses = TRUE}: a list with \code{stats}
+(that vector), \code{test} (the test rows), \code{l0} and \code{l1} (per-test-row squared
+errors, summed over the Y columns, of M0 and M1) and \code{yh0} (the test-row
+predictions of M0, standardised Y scale).
 }
 \description{
 Splits the rows into a training and a test part, fits two regressions on the
@@ -70,30 +82,40 @@ training rows, M0: Y ~ V and M1: Y ~ V + X, and compares their prediction errors
 on the test rows: \code{T = M1 - M0} (RMSEP, with Y standardised by the training means
 and sds). Negative \code{T} means that X improves the prediction of Y beyond V. This
 is one draw of the statistic: \code{\link[=cci_null_dist]{cci_null_dist()}} repeats it on resampled copies of
-X to build the null distribution, and \code{\link[=SOPLS.CCI.test]{SOPLS.CCI.test()}}, \code{\link[=PLS.CCI.test]{PLS.CCI.test()}} and
-\code{\link[=multixgb.CCI.test]{multixgb.CCI.test()}} combine the two into a p-value.
+X to build the null distribution, and \code{\link[=Block.CCI.test]{Block.CCI.test()}} combines the two into a
+p-value.
 }
 \details{
-The regression is done by a \emph{learner} wrapper chosen with \code{learner}:
+The regression is chosen with \code{method}:
 \itemize{
-\item \code{"sopls"} (default): both models come from one \code{multiblock::sopls} fit (M0: the
+\item \code{"SOPLS"} (default): both models come from one \code{multiblock::sopls} fit (M0: the
 V components; M1: after adding b components of X, fitted sequentially on the
 V-orthogonalised Y and X). Each V block is a separate SO-PLS block. With
 \code{ncomp = "auto"} each V block gets one component and the number of X
 components b is chosen by inner CV; b = 0 means X is not selected, so
 M1 = M0 and T = 0.
-\item \code{"pls"}: ordinary PLS regression (\code{pls::plsr}) of Y on cbind(V) and on
+\item \code{"PLS"}: ordinary PLS regression (\code{pls::plsr}) of Y on cbind(V) and on
 cbind(V, X), so the block structure is not used. With \code{ncomp = "auto"} the
 number of components of each model is chosen by inner CV.
-\item \code{"xgboost"} (experimental, needs more work: type I error is not controlled on
-nonlinear scenarios, see \code{LOG.md}): two multi-target XGBoost models (Y ~ V and
-Y ~ V + X, needs xgboost >= 2.0). Each is trained with a fixed number of
-boosting rounds on all the training rows (no early stopping) and used only to
-predict the test rows. Options go in \code{learner_args}.
+\item \code{"ROSA"}: response-oriented sequential alternation (\code{multiblock::rosa}) of Y on
+the V blocks and on the V blocks plus X, every block kept separate (each
+component comes from the block that best explains the current Y residual).
+With \code{ncomp = "auto"} the number of components of each model is chosen by
+inner CV.
+\item \code{"XGB"} (experimental, needs more work: type I error is not controlled on
+nonlinear scenarios, see \code{LOG.md}): two multi-target XGBoost models (needs
+xgboost >= 2.0), each trained with a fixed number of boosting rounds on all
+the training rows (no early stopping).
+\item \code{"RF"}: two multi-output random forests (\code{grf::multi_regression_forest}, needs
+the grf package), each grown on all the training rows with splits that reduce
+the error summed over the Y columns.
+\item a learner function: any function with the interface described in
+\code{R/learners.R}, \verb{function(Ys, X, Vl, train, test, opts)} returning
+\code{list(yh0, yh1, a, b)}. To make a new method available by name, add it to
+\code{.cci_methods} in that file.
 }
 
 All tuning uses the training rows only, so the test rows are never used for
 model selection, and the same procedure is applied to the observed X and to the
-resampled X*. Learners are defined in \code{R/learners.R}; a new learner is a function
-with the same interface that is added to the \code{switch()} below.
+resampled X*.
 }

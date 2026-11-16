@@ -22,6 +22,9 @@
 #'   component and the number of X components is chosen by inner CV.
 #' * `"PLS"`: ordinary PLS (`pls::plsr`) on the `cbind`-ed blocks; the number of
 #'   components of each model is chosen by inner CV.
+#' * `"ROSA"`: response-oriented sequential alternation (`multiblock::rosa`); every
+#'   block is kept separate and each component comes from the block that best
+#'   explains the current Y residual. Components chosen by inner CV.
 #' * `"XGB"`: multi-target XGBoost (experimental; needs xgboost >= 2.0).
 #' * `"RF"`: multi-output random forest (`grf::multi_regression_forest`; needs grf).
 #' * a learner function with the interface described in `R/learners.R`. New methods
@@ -96,10 +99,11 @@ print.BlockCCI <- function(x, ...) {
   unit <- switch(x$method,
                  SOPLS = "V components, added X components",
                  PLS   = "components of Y ~ V, Y ~ V + X",
+                 ROSA  = "components of Y ~ V, Y ~ V + X",
                  XGB   = "boosting rounds of M0, M1",
                  RF    = "trees of M0, M1",
                  "complexity of M0, M1")
-  if (x$method %in% c("SOPLS", "PLS"))
+  if (x$method %in% c("SOPLS", "PLS", "ROSA"))
     cat("ncomp =", paste(x$ncomp, collapse = ","), "| ")
   cat(unit, "(observed split):", paste(x$complexity, collapse = ", "), "\n")
   cat(sprintf("RMSEP given V: %.4f   after adding X: %.4f   T = M1 - M0 = %.4f\n",

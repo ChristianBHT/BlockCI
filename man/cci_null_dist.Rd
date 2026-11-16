@@ -2,22 +2,22 @@
 % Please edit documentation in R/cci_null_dist.R
 \name{cci_null_dist}
 \alias{cci_null_dist}
-\title{Null distribution of T for the CCI-type tests}
+\title{Null distribution of T for the block CCI test}
 \usage{
 cci_null_dist(
   formula,
   data,
+  method = "SOPLS",
   nperm = 160,
-  method = c("rotation", "permutation", "conditional"),
+  resampling = c("rotation", "permutation", "conditional"),
   p = 0.75,
   ncomp = "auto",
   scale = TRUE,
-  max_ncomp = c(10, 5),
+  max_ncomp = NULL,
   cv_segments = 5,
-  progress = FALSE,
-  learner = c("sopls", "xgboost", "pls"),
-  learner_args = list(),
-  group_size = 10
+  method_args = list(),
+  group_size = 10,
+  progress = FALSE
 )
 }
 \arguments{
@@ -28,45 +28,51 @@ after the bar is its own V block.}
 \item{data}{named list of matrices (or a data.frame). Rows with missing values
 in any used variable are dropped.}
 
+\item{method}{regression method: \code{"SOPLS"} (default), \code{"PLS"}, \code{"ROSA"}, \code{"XGB"},
+\code{"RF"} (case-insensitive) or a learner function (see Details).}
+
 \item{nperm}{number of null samples R}
 
-\item{method}{resampling of X: \code{"rotation"} (linear adjustment for V),
-\code{"permutation"} (global row permutation) or \code{"conditional"} (permute rows of X
-within groups of rows with similar V, see \code{\link[=permute_X_cond]{permute_X_cond()}}; suited to
-nonlinear dependence on V)}
+\item{resampling}{resampling of X: \code{"rotation"} (default; linear adjustment for
+V, see \code{\link[=rotate_X]{rotate_X()}}), \code{"permutation"} (global row permutation) or
+\code{"conditional"} (permute rows of X within groups of rows with similar V, see
+\code{\link[=permute_X_cond]{permute_X_cond()}})}
 
 \item{p}{training fraction}
 
-\item{ncomp}{\code{"auto"} (chosen by inner CV as described above) or fixed numbers
-of components. For \code{learner = "sopls"}: \code{c(a_1, ..., a_k, b)}, the components
-for each of the k V blocks, then the components added from X (for a test
-without V, \code{c(0, b)}). For \code{learner = "pls"}: \code{c(a, b)}, the components of
-Y ~ V and of Y ~ V + X. Not used by \code{"xgboost"}.}
+\item{ncomp}{(\code{"SOPLS"}, \code{"PLS"}, \code{"ROSA"}) \code{"auto"} (chosen by inner CV as described
+above) or fixed numbers of components. For \code{"SOPLS"}: \code{c(a_1, ..., a_k, b)},
+the components for each of the k V blocks, then the components added from X
+(for a test without V, \code{c(0, b)}). For \code{"PLS"} and \code{"ROSA"}: \code{c(a, b)}, the
+components of Y ~ V and of Y ~ V + X.}
 
-\item{scale}{scale the blocks (\code{"sopls"} and \code{"pls"})}
+\item{scale}{scale the blocks (\code{"SOPLS"}, \code{"PLS"}, \code{"ROSA"}) and standardise Y}
 
-\item{max_ncomp}{maximum number of components searched when \code{ncomp = "auto"}.
-\code{"sopls"} uses the second element (maximum number of X components); \code{"pls"}
-uses the first element (maximum for each of the two models).}
+\item{max_ncomp}{(\code{"SOPLS"}, \code{"PLS"}, \code{"ROSA"}) maximum number of components
+searched when \code{ncomp = "auto"}: for \code{"SOPLS"} the maximum number of X
+components (default 5), for \code{"PLS"} and \code{"ROSA"} the maximum for each of the
+two models (default 10). \code{NULL} uses the method's default.}
 
-\item{cv_segments}{number of CV segments for the inner selection (\code{"sopls"} and
-\code{"pls"})}
+\item{cv_segments}{(\code{"SOPLS"}, \code{"PLS"}, \code{"ROSA"}) number of CV segments for the inner
+selection}
+
+\item{method_args}{named list of method-specific options. For \code{"XGB"}:
+\code{nrounds} (number of boosting rounds, 1000) and \code{params} (a list merged into
+the xgboost parameters, defaults \verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}).
+For \code{"RF"}: any arguments of \code{\link[grf:multi_regression_forest]{grf::multi_regression_forest()}}, e.g.
+\code{num.trees} (2000), \code{num.threads} (1; \code{NULL} uses all cores),
+\code{min.node.size}, \code{mtry}, \code{sample.fraction} or \code{honesty}. A learner function
+receives the list as \code{opts$args}.}
+
+\item{group_size}{rows per cluster for \code{resampling = "conditional"}}
 
 \item{progress}{show a progress bar}
-
-\item{learner}{\code{"sopls"} (default), \code{"xgboost"} or \code{"pls"}}
-
-\item{learner_args}{(\code{learner = "xgboost"} only) named list of options:
-\code{nrounds} (number of boosting rounds, 1000) and \code{params} (a list merged into
-the xgboost parameters, defaults
-\verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}).}
-
-\item{group_size}{rows per cluster for \code{method = "conditional"}}
 }
 \value{
 numeric vector of \code{nperm} null statistics
 }
 \description{
-R MCCV instances, each on a resampled X*, using \code{method = "rotation"}
-(default), \code{"permutation"} or \code{"conditional"}.
+\code{nperm} Monte Carlo CV statistics (\code{\link[=cci_test_gen]{cci_test_gen()}}), each computed on a resampled
+copy X* of X. The resampling keeps the relation between X and V (exactly or
+approximately) but breaks any dependence between X and Y given V.
 }

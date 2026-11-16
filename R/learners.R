@@ -7,9 +7,11 @@
 #   X            the X block (all rows; the observed X or a resampled X*)
 #   Vl           list of V blocks (all rows), or NULL for an unconditional test
 #   train, test  row indices
-#   opts         list(ncomp, scale, max_ncomp, cv_segments, args); `args` is the
-#                user's `method_args` (learner-specific options). A learner uses
-#                the fields it needs and ignores the rest.
+#   opts         list(ncomp, scale, max_ncomp, cv_segments, args, fit_m0); `args`
+#                is the user's `method_args` (learner-specific options). If
+#                `fit_m0` is FALSE the caller already has the M0 predictions for
+#                this split, and the learner may skip M0 (return yh0 = NULL,
+#                a = NA). A learner uses the fields it needs and ignores the rest.
 # Returns list(yh0, yh1, a, b):
 #   yh0, yh1     test-row predictions of Y from M0 (zeros if there is no V) and M1
 #   a, b         complexity of M0 and M1 (components, boosting rounds, trees, ...)
@@ -119,9 +121,53 @@
     return(list(yh0 = matrix(0, nt, q), yh1 = f1$pred, a = 0, b = f1$nc))
   }
   Vm <- do.call(cbind, Vl)
-  f0 <- fit_pred(Vm, if (auto) NULL else ncomp[1])
+  f0 <- if (isFALSE(opts$fit_m0)) NULL else fit_pred(Vm, if (auto) NULL else ncomp[1])
   f1 <- fit_pred(cbind(Vm, X), if (auto) NULL else ncomp[2])
-  list(yh0 = f0$pred, yh1 = f1$pred, a = f0$nc, b = f1$nc)
+  list(yh0 = f0$pred, yh1 = f1$pred, a = f0$nc %||% NA_integer_, b = f1$nc)
+}
+
+# ROSA, response-oriented sequential alternation (multiblock::rosa). M0: Y ~ V1 + ...
+# + Vk; M1: Y ~ V1 + ... + Vk + X, with every block kept as a separate ROSA block (each
+# component is taken from the block that best explains the current Y residual).
+# opts: ncomp ("auto": chosen by inner CV for each model, or c(a, b) for M0 and M1),
+#   scale, max_ncomp (maximum components of each model when ncomp = "auto";
+#   default 10), cv_segments.
+.learner_rosa <- function(Ys, X, Vl, train, test, opts) {
+  ncomp <- opts$ncomp %||% "auto"
+  scale <- opts$scale %||% TRUE
+  max_ncomp <- opts$max_ncomp %||% 10
+  cv_segments <- opts$cv_segments %||% 5
+  q <- ncol(Ys); nt <- length(test); ntr <- length(train)
+  auto <- identical(ncomp, "auto")
+  if (!auto && length(ncomp) != 2) stop("for ROSA, ncomp must be \"auto\" or c(a, b): components for Y ~ V and for Y ~ V + X")
+  Ytr <- Ys[train, , drop = FALSE]
+
+  fit_pred <- function(blocks, k_fixed) {
+    bn <- paste0("B", seq_along(blocks))
+    kmax <- min(if (auto) max_ncomp[1] else k_fixed, sum(vapply(blocks, ncol, 1L)), ntr - 2)
+    dtr <- c(list(Y = Ytr), stats::setNames(lapply(blocks, function(m) m[train, , drop = FALSE]), bn))
+    fml <- stats::as.formula(paste("Y ~", paste(bn, collapse = " + ")))
+    cv_args <- if (auto) list(validation = "CV", segments = min(cv_segments, ntr)) else list()
+    fit <- do.call(multiblock::rosa, c(list(fml, data = dtr, ncomp = kmax, scale = scale), cv_args))
+    nc <- min(kmax, fit$ncomp)
+    if (auto) {   # component count with the lowest CV error (summed over Y columns)
+      cvp <- fit$validation$pred                                   # ntr x q x ncomp
+      nc <- which.min(vapply(seq_len(dim(cvp)[3]),
+                             function(a) sum((Ytr - matrix(cvp[, , a], ntr))^2), 0))
+    }
+    # predictor blocks cbind-ed in the order of the formula
+    Xte <- do.call(cbind, lapply(blocks, function(m) m[test, , drop = FALSE]))
+    pr <- stats::predict(fit, newdata = Xte, ncomp = nc)           # nt x q x 1
+    list(pred = matrix(pr[, , 1], nt, q), nc = as.integer(nc))
+  }
+
+  if (is.null(Vl)) {   # unconditional test: M0 is the training mean (0 on the Ys scale)
+    f1 <- fit_pred(list(X), if (auto) NULL else ncomp[2])
+    return(list(yh0 = matrix(0, nt, q), yh1 = f1$pred, a = 0, b = f1$nc))
+  }
+  f0 <- if (isFALSE(opts$fit_m0)) NULL else fit_pred(Vl, if (auto) NULL else ncomp[1])
+  f1 <- fit_pred(c(Vl, list(X)), if (auto) NULL else ncomp[2])
+  list(yh0 = f0$pred, yh1 = f1$pred, a = f0$nc %||% NA_integer_, b = f1$nc)
 }
 
 # Multi-target XGBoost (xgboost >= 2.0, multi_strategy = "multi_output_tree").
@@ -135,7 +181,7 @@
     stop("The package 'xgboost' (>= 2.0) is required for method = \"XGB\".")
   q <- ncol(Ys)
   nt <- length(test)
-  la <- utils::modifyList(list(nrounds = 1000, params = list()), opts$args %||% list())
+  la <- utils::modifyList(list(nrounds = 2000, params = list()), opts$args %||% list())
   params <- utils::modifyList(
     list(objective = "reg:squarederror", tree_method = "hist", multi_strategy = "multi_output_tree",
          max_depth = 3, eta = 0.1, nthread = 1),
@@ -151,7 +197,9 @@
     return(list(yh0 = matrix(0, nt, q), yh1 = fit_pred(X), a = 0, b = la$nrounds))
   }
   Vm <- do.call(cbind, Vl)
-  list(yh0 = fit_pred(Vm), yh1 = fit_pred(cbind(Vm, X)), a = la$nrounds, b = la$nrounds)
+  skip0 <- isFALSE(opts$fit_m0)
+  list(yh0 = if (skip0) NULL else fit_pred(Vm), yh1 = fit_pred(cbind(Vm, X)),
+       a = if (skip0) NA else la$nrounds, b = la$nrounds)
 }
 
 # Multi-output random forest (grf::multi_regression_forest). M0: Y ~ V; M1: Y ~ V + X
@@ -182,7 +230,9 @@
     return(list(yh0 = matrix(0, nt, q), yh1 = fit_pred(X), a = 0, b = la$num.trees))
   }
   Vm <- do.call(cbind, Vl)
-  list(yh0 = fit_pred(Vm), yh1 = fit_pred(cbind(Vm, X)), a = la$num.trees, b = la$num.trees)
+  skip0 <- isFALSE(opts$fit_m0)
+  list(yh0 = if (skip0) NULL else fit_pred(Vm), yh1 = fit_pred(cbind(Vm, X)),
+       a = if (skip0) NA else la$num.trees, b = la$num.trees)
 }
 
 # ---- registry -----------------------------------------------------------------
@@ -190,22 +240,23 @@
 .cci_methods <- list(
   SOPLS = .learner_sopls,
   PLS   = .learner_pls,
+  ROSA  = .learner_rosa,
   XGB   = .learner_xgboost,
   RF    = .learner_rf
 )
 
-# Look up a learner: `method` is a name in .cci_methods (case-insensitive) or a
-# learner function with the interface described at the top of this file.
-.get_learner <- function(method) {
+# Look up a learner: `method` is a name in `registry` (case-insensitive) or a
+# learner function with the interface of that registry.
+.get_learner <- function(method, registry = .cci_methods) {
   if (is.function(method)) return(method)
   if (!is.character(method) || length(method) != 1)
-    stop("`method` must be one of ", paste(names(.cci_methods), collapse = ", "),
+    stop("`method` must be one of ", paste(names(registry), collapse = ", "),
          ", or a learner function")
   key <- toupper(method)
-  if (!key %in% names(.cci_methods))
+  if (!key %in% names(registry))
     stop("unknown method '", method, "'; available: ",
-         paste(names(.cci_methods), collapse = ", "), ", or a learner function")
-  .cci_methods[[key]]
+         paste(names(registry), collapse = ", "), ", or a learner function")
+  registry[[key]]
 }
 
 # Display name of a method (the registry name, or "custom" for a function)

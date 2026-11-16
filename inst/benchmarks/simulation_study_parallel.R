@@ -6,8 +6,8 @@ library(pbapply)
 data <- sim_1()
 Block.CCI.test(Y ~ X | Z1 + Z2, data = data)
 Block.CCI.test(Y ~ X | Z1, data = data)
-pls_ci_test(Y ~ X | Z1 + Z2, data = data)
-pls_ci_test(Y ~ X | Z1, data = data)
+Block.resid.test(Y ~ X | Z1 + Z2, data = data)
+Block.resid.test(Y ~ X | Z1, data = data)
 
 
 

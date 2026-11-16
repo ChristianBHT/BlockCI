@@ -1,4 +1,5 @@
-# Type I error and power of multixg_ci_test() on sim_1, sim_3 and sim_5.
+# Type I error and power of the XGBoost residual test (Block.resid.test(method = "XGB"))
+# on sim_1, sim_3 and sim_5.
 # For every dataset the cross-fitted XGBoost residuals are computed once and the
 # permutation test is run with both permutation types ("conditional", "simple").
 #
@@ -31,7 +32,10 @@ one_rep <- function(i, cells, n, B) {
     d <- dat[[ce$sim]]
     cc <- ns$.canonical(ce$f, d)
     Z <- do.call(cbind, cc$V)
-    rs <- ns$.multixg_residuals(cc$X, cc$Y, Z, nfolds = 5, nrounds = 300, params = list())
+    folds <- sample(rep_len(1:5, nrow(Z)))
+    opts <- list(resid = "cv", args = list(nrounds = 300))
+    rs <- list(res_x = ns$.resid_xgb(cc$X, cc$V, folds, opts)$res,
+               res_y = ns$.resid_xgb(cc$Y, cc$V, folds, opts)$res)
     data.frame(cell = j, rep = i,
                p_conditional = ns$.resid_perm_test(rs$res_x, rs$res_y, Z, "rv", "conditional", B, 10)$p,
                p_simple      = ns$.resid_perm_test(rs$res_x, rs$res_y, Z, "rv", "simple", B, 10)$p)

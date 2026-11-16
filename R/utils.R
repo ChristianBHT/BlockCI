@@ -4,6 +4,8 @@
 #   cci_null_dist()  ~ perm.test()  : builds the null distribution
 #   cci_test_gen()   ~ test.gen()   : one MCCV statistic
 #   learners.R                      : the regression methods ("SOPLS", "PLS", "XGB", "RF")
+# Residual test: Block.resid.test() with the residual learners in resid_learners.R
+#   ("PLS", "ROSA", "XGB", "RF") and .resid_perm_test() below.
 # Requires: multiblock (sopls), pls (plsr); xgboost and grf are optional
 
 # ---- helpers ---------------------------------------------------------------

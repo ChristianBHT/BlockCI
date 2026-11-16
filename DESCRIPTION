@@ -9,7 +9,9 @@ Description: Causal discovery between blocks of data, where blocks are matrices
     ground truth, baseline discovery methods, and a computational conditional
     independence test between blocks, modelled on the CCI package, with
     sequential orthogonal PLS (SO-PLS), PLS, XGBoost or random forest
-    regression and rotation or permutation resampling.
+    regression and rotation or permutation resampling, and a residual-based
+    test (PLS, ROSA, XGBoost or random forest residuals with a permutation
+    test).
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

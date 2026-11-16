@@ -1833,39 +1833,37 @@ dat &lt;- sim_1()</code></pre>
 Først tester vi en sann uavhengighet.</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHVjMlYwTG5ObFpXUW9NaWxjYm5SbGMzUXhJRHd0SUhCc2MxOWphVjkwWlhOMEtGa2dmaUJZSUh3Z1dqRWdLeUJhTWl3Z1pHRjBZU0E5SUdSaGRDbGNibkJ5YVc1MEtIUmxjM1F4S1Z4dVlHQmdJbjA9IC0tPlxuXG5gYGByXG5zZXQuc2VlZCgyKVxudGVzdDEgPC0gcGxzX2NpX3Rlc3QoWSB+IFggfCBaMSArIFoyLCBkYXRhID0gZGF0KVxucHJpbnQodGVzdDEpXG5gYGBcblxuPCEtLSBybmItc291cmNlLWVuZCAtLT5cbiJ9 -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuc2V0LnNlZWQoMilcbnRlc3QxIDwtIHBsc19jaV90ZXN0KFkgfiBYIHwgWjEgKyBaMiwgZGF0YSA9IGRhdClcbnByaW50KHRlc3QxKVxuYGBgIn0= -->
+<!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHVjMlYwTG5ObFpXUW9NaWxjYmtKc2IyTnJMbkpsYzJsa0xuUmxjM1FvV1NCK0lGZ2dmQ0JhTVNBcklGb3lMQ0JrWVhSaElEMGdaR0YwS1Z4dVlHQmdJbjA9IC0tPlxuXG5gYGByXG5zZXQuc2VlZCgyKVxuQmxvY2sucmVzaWQudGVzdChZIH4gWCB8IFoxICsgWjIsIGRhdGEgPSBkYXQpXG5gYGBcblxuPCEtLSBybmItc291cmNlLWVuZCAtLT5cbiJ9 -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuc2V0LnNlZWQoMilcbkJsb2NrLnJlc2lkLnRlc3QoWSB+IFggfCBaMSArIFoyLCBkYXRhID0gZGF0KVxuYGBgIn0= -->
 <pre class="r"><code>set.seed(2)
-test1 &lt;- pls_ci_test(Y ~ X | Z1 + Z2, data = dat)
-print(test1)</code></pre>
+Block.resid.test(Y ~ X | Z1 + Z2, data = dat)</code></pre>
 <!-- rnb-source-end -->
 <!-- rnb-output-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiXG5cdFBMUyByZXNpZHVhbCB0ZXN0IGZvciBiIFgg4qurIFkgfCBaIChydiwgY29uZGl0aW9uYWwgcGVybXV0YXRpb24sIGN2IHJlc2lkdWFscylcblxuZGF0YTogIFkgfiBYIHwgWjEgKyBaMlxuc3RhdCA9IDAuMDEzMzE1LCBwLXZhbHVlID0gMC4yNzlcbmFsdGVybmF0aXZlIGh5cG90aGVzaXM6IFggYW5kIFkgZGVwZW5kZW50IGdpdmVuIFpcbiJ9 -->
+<!-- rnb-output-begin eyJkYXRhIjoiXG5cdEJsb2NrIHJlc2lkdWFsIHRlc3QgZm9yIFkgX3x8XyBYIHwgWiAoUExTIHJlZ3Jlc3Npb24sIHJ2LCBjb25kaXRpb25hbCBwZXJtdXRhdGlvbiwgY3YgcmVzaWR1YWxzKVxuXG5kYXRhOiAgWSB+IFggfCBaMSArIFoyXG5SViA9IDAuMDA3NjExMywgcC12YWx1ZSA9IDAuOTYzXG5hbHRlcm5hdGl2ZSBoeXBvdGhlc2lzOiBYIGFuZCBZIGFyZSBkZXBlbmRlbnQgZ2l2ZW4gWlxuIn0= -->
 <pre><code>
-    PLS residual test for b X ⫫ Y | Z (rv, conditional permutation, cv residuals)
+    Block residual test for Y _||_ X | Z (PLS regression, rv, conditional permutation, cv residuals)
 
 data:  Y ~ X | Z1 + Z2
-stat = 0.013315, p-value = 0.279
-alternative hypothesis: X and Y dependent given Z</code></pre>
+RV = 0.0076113, p-value = 0.963
+alternative hypothesis: X and Y are dependent given Z</code></pre>
 <!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 <p>Så en hypotese som ikke holder;</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHVkR1Z6ZERJZ1BDMGdjR3h6WDJOcFgzUmxjM1FvV1NCK0lGZ2dmQ0JhTVN3Z1pHRjBZU0E5SUdSaGRDbGNibkJ5YVc1MEtIUmxjM1F5S1Z4dVlHQmdJbjA9IC0tPlxuXG5gYGByXG50ZXN0MiA8LSBwbHNfY2lfdGVzdChZIH4gWCB8IFoxLCBkYXRhID0gZGF0KVxucHJpbnQodGVzdDIpXG5gYGBcblxuPCEtLSBybmItc291cmNlLWVuZCAtLT5cbiJ9 -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxudGVzdDIgPC0gcGxzX2NpX3Rlc3QoWSB+IFggfCBaMSwgZGF0YSA9IGRhdClcbnByaW50KHRlc3QyKVxuYGBgIn0= -->
-<pre class="r"><code>test2 &lt;- pls_ci_test(Y ~ X | Z1, data = dat)
-print(test2)</code></pre>
+<!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHVRbXh2WTJzdWNtVnphV1F1ZEdWemRDaFpJSDRnV0NCOElGb3hMQ0JrWVhSaElEMGdaR0YwS1Z4dVlHQmdJbjA9IC0tPlxuXG5gYGByXG5CbG9jay5yZXNpZC50ZXN0KFkgfiBYIHwgWjEsIGRhdGEgPSBkYXQpXG5gYGBcblxuPCEtLSBybmItc291cmNlLWVuZCAtLT5cbiJ9 -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuQmxvY2sucmVzaWQudGVzdChZIH4gWCB8IFoxLCBkYXRhID0gZGF0KVxuYGBgIn0= -->
+<pre class="r"><code>Block.resid.test(Y ~ X | Z1, data = dat)</code></pre>
 <!-- rnb-source-end -->
 <!-- rnb-output-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiXG5cdFBMUyByZXNpZHVhbCB0ZXN0IGZvciBiIFgg4qurIFkgfCBaIChydiwgY29uZGl0aW9uYWwgcGVybXV0YXRpb24sIGN2IHJlc2lkdWFscylcblxuZGF0YTogIFkgfiBYIHwgWjFcbnN0YXQgPSAwLjQ2NzEyLCBwLXZhbHVlID0gMC4wMDFcbmFsdGVybmF0aXZlIGh5cG90aGVzaXM6IFggYW5kIFkgZGVwZW5kZW50IGdpdmVuIFpcbiJ9 -->
+<!-- rnb-output-begin eyJkYXRhIjoiXG5cdEJsb2NrIHJlc2lkdWFsIHRlc3QgZm9yIFkgX3x8XyBYIHwgWiAoUExTIHJlZ3Jlc3Npb24sIHJ2LCBjb25kaXRpb25hbCBwZXJtdXRhdGlvbiwgY3YgcmVzaWR1YWxzKVxuXG5kYXRhOiAgWSB+IFggfCBaMVxuUlYgPSAwLjUyNjU3LCBwLXZhbHVlID0gMC4wMDFcbmFsdGVybmF0aXZlIGh5cG90aGVzaXM6IFggYW5kIFkgYXJlIGRlcGVuZGVudCBnaXZlbiBaXG4ifQ== -->
 <pre><code>
-    PLS residual test for b X ⫫ Y | Z (rv, conditional permutation, cv residuals)
+    Block residual test for Y _||_ X | Z (PLS regression, rv, conditional permutation, cv residuals)
 
 data:  Y ~ X | Z1
-stat = 0.46712, p-value = 0.001
-alternative hypothesis: X and Y dependent given Z</code></pre>
+RV = 0.52657, p-value = 0.001
+alternative hypothesis: X and Y are dependent given Z</code></pre>
 <!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
@@ -1874,66 +1872,135 @@ endre hvordan korrelasjon beregnes, bruker man argumentet
 <code>stat</code>.</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHVkR1Z6ZENBOExTQndiSE5mWTJsZmRHVnpkQ2haSUg0Z1dDQjhJRm94TENCa1lYUmhJRDBnWkdGMExDQnpkR0YwSUQwZ1hDSmtZMjl5WENJcFhHNXdjbWx1ZENoMFpYTjBLVnh1WUdCZ0luMD0gLS0+XG5cbmBgYHJcbnRlc3QgPC0gcGxzX2NpX3Rlc3QoWSB+IFggfCBaMSwgZGF0YSA9IGRhdCwgc3RhdCA9IFwiZGNvclwiKVxucHJpbnQodGVzdClcbmBgYFxuXG48IS0tIHJuYi1zb3VyY2UtZW5kIC0tPlxuIn0= -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxudGVzdCA8LSBwbHNfY2lfdGVzdChZIH4gWCB8IFoxLCBkYXRhID0gZGF0LCBzdGF0ID0gXCJkY29yXCIpXG5wcmludCh0ZXN0KVxuYGBgIn0= -->
-<pre class="r"><code>test &lt;- pls_ci_test(Y ~ X | Z1, data = dat, stat = &quot;dcor&quot;)
-print(test)</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-output-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiXG5cdFBMUyByZXNpZHVhbCB0ZXN0IGZvciBiIFgg4qurIFkgfCBaIChkY29yLCBjb25kaXRpb25hbCBwZXJtdXRhdGlvbiwgY3YgcmVzaWR1YWxzKVxuXG5kYXRhOiAgWSB+IFggfCBaMVxuc3RhdCA9IDAuNjg4OTUsIHAtdmFsdWUgPSAwLjAwMVxuYWx0ZXJuYXRpdmUgaHlwb3RoZXNpczogWCBhbmQgWSBkZXBlbmRlbnQgZ2l2ZW4gWlxuIn0= -->
+<!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHVkR1Z6ZENBOExTQndiSE5mWTJsZmRHVnpkQ2haSUg0Z1dDQjhJRm94TENCa1lYUmhJRDBnWkdGMExDQnpkR0YwSUQwZ1hDSmtZMjl5WENJcFhHNXdjbWx1ZENoMFpYTjBLVnh1WUdCZ0luMD0gLS0+XG5cbmBgYHJcbnRlc3QgPC0gcGxzX2NpX3Rlc3QoWSB+IFggfCBaMSwgZGF0YSA9IGRhdCwgc3RhdCA9IFxcZGNvclxcKVxucHJpbnQodGVzdClcbmBgYFxuXG48IS0tIHJuYi1zb3VyY2UtZW5kIC0tPlxuIn0= -->
 <pre><code>
-    PLS residual test for b X ⫫ Y | Z (dcor, conditional permutation, cv residuals)
+&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxudGVzdCA8LSBwbHNfY2lfdGVzdChZIH4gWCB8IFoxLCBkYXRhID0gZGF0LCBzdGF0ID0gXCJkY29yXCIpXG5wcmludCh0ZXN0KVxuYGBgIn0= --&gt;
 
-data:  Y ~ X | Z1
-stat = 0.68895, p-value = 0.001
-alternative hypothesis: X and Y dependent given Z</code></pre>
+```r
+test &lt;- pls_ci_test(Y ~ X | Z1, data = dat, stat = \dcor\)
+print(test)
+```
+
+&lt;!-- rnb-source-end --&gt;</code></pre>
 <!-- rnb-output-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-</div>
-<div id="rosa_ci_test-pls-blokk-betinget-uavhengighet" class="section level2">
-<h2>rosa_ci_test (PLS blokk betinget uavhengighet)</h2>
-<p>ROSA (response-oriented sequential alternation
-<code>multiblock::rosa</code>) regresjon. Hensikten med denne metoden er
-at den er potensielt enda raskere enn PLS basert metode.</p>
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHVkR1Z6ZENBOExTQnliM05oWDJOcFgzUmxjM1FvV1NCK0lGZ2dmQ0JhTVNBcklGb3lMQ0JrWVhSaElEMGdaR0YwS1Z4dWNISnBiblFvZEdWemRDbGNibUJnWUNKOSAtLT5cblxuYGBgclxudGVzdCA8LSByb3NhX2NpX3Rlc3QoWSB+IFggfCBaMSArIFoyLCBkYXRhID0gZGF0KVxucHJpbnQodGVzdClcbmBgYFxuXG48IS0tIHJuYi1zb3VyY2UtZW5kIC0tPlxuIn0= -->
+<!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHVZR0JnY2x4dWRHVnpkQ0E4TFNCd2JITmZZMmxmZEdWemRDaFpJSDRnV0NCOElGb3hMQ0JrWVhSaElEMGdaR0YwTENCemRHRjBJRDBnWEZ4a1kyOXlYRndwWEc1d2NtbHVkQ2gwWlhOMEtWeHVZR0JnWEc1Z1lHQWlmUT09IC0tPlxuXG5gYGByXG5gYGByXG50ZXN0IDwtIHBsc19jaV90ZXN0KFkgfiBYIHwgWjEsIGRhdGEgPSBkYXQsIHN0YXQgPSBcXGRjb3JcXClcbnByaW50KHRlc3QpXG5gYGBcbmBgYFxuXG48IS0tIHJuYi1zb3VyY2UtZW5kIC0tPlxuIn0= -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxudGVzdCA8LSBwbHNfY2lfdGVzdChZIH4gWCB8IFoxLCBkYXRhID0gZGF0LCBzdGF0ID0gXFxkY29yXFwpXG5wcmludCh0ZXN0KVxuYGBgXG5gYGAifQ== -->
+<pre class="r"><code>```r
+test &lt;- pls_ci_test(Y ~ X | Z1, data = dat, stat = \dcor\)
+print(test)</code></pre>
+<pre><code>
+&lt;!-- rnb-source-end --&gt;
+
+
+&lt;!-- rnb-output-end --&gt;
+
+&lt;!-- rnb-output-begin eyJkYXRhIjoiXG5cdFBMUyByZXNpZHVhbCB0ZXN0IGZvciBiIFgg4qurIFkgfCBaIChkY29yLCBjb25kaXRpb25hbCBwZXJtdXRhdGlvbiwgY3YgcmVzaWR1YWxzKVxuXG5kYXRhOiAgWSB+IFggfCBaMVxuc3RhdCA9IDAuNjg4OTUsIHAtdmFsdWUgPSAwLjAwMVxuYWx0ZXJuYXRpdmUgaHlwb3RoZXNpczogWCBhbmQgWSBkZXBlbmRlbnQgZ2l2ZW4gWlxuIn0= --&gt;
+</code></pre>
+<pre><code>PLS residual test for b X ⫫ Y | Z (dcor, conditional permutation, cv residuals)</code></pre>
+<p>data: Y ~ X | Z1 stat = 0.68895, p-value = 0.001 alternative
+hypothesis: X and Y dependent given Z</p>
+<pre><code>
+
+
+&lt;!-- rnb-output-end --&gt;
+
+&lt;!-- rnb-chunk-end --&gt;
+
+
+&lt;!-- rnb-text-begin --&gt;
+
+
+## rosa_ci_test (PLS blokk betinget uavhengighet) 
+ROSA (response-oriented sequential alternation `multiblock::rosa`) regresjon. Hensikten med denne metoden er at den er potensielt enda raskere enn PLS basert metode. 
+
+
+&lt;!-- rnb-text-end --&gt;
+
+
+&lt;!-- rnb-chunk-begin --&gt;
+
+
+&lt;!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHVkR1Z6ZENBOExTQnliM05oWDJOcFgzUmxjM1FvV1NCK0lGZ2dmQ0JhTVNBcklGb3lMQ0JrWVhSaElEMGdaR0YwS1Z4dWNISnBiblFvZEdWemRDbGNibUJnWUNKOSAtLT5cblxuYGBgclxudGVzdCA8LSByb3NhX2NpX3Rlc3QoWSB+IFggfCBaMSArIFoyLCBkYXRhID0gZGF0KVxucHJpbnQodGVzdClcbmBgYFxuXG48IS0tIHJuYi1zb3VyY2UtZW5kIC0tPlxuIn0= --&gt;
+</code></pre>
 <!-- rnb-source-begin eyJkYXRhIjoiYGBgclxudGVzdCA8LSByb3NhX2NpX3Rlc3QoWSB+IFggfCBaMSArIFoyLCBkYXRhID0gZGF0KVxucHJpbnQodGVzdClcbmBgYCJ9 -->
 <pre class="r"><code>test &lt;- rosa_ci_test(Y ~ X | Z1 + Z2, data = dat)
 print(test)</code></pre>
 <!-- rnb-source-end -->
-<!-- rnb-output-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiXG5cdFJPU0EgcmVzaWR1YWwgdGVzdCBmb3IgWCBffHxfIFkgfCBaIChydiwgY29uZGl0aW9uYWwgcGVybXV0YXRpb24sIGN2IHJlc2lkdWFscylcblxuZGF0YTogIFkgfiBYIHwgWjEgKyBaMlxuc3RhdCA9IDAuMDEzNTI5LCBwLXZhbHVlID0gMC4yMTlcbmFsdGVybmF0aXZlIGh5cG90aGVzaXM6IFggYW5kIFkgYXJlIGRlcGVuZGVudCBnaXZlbiBaXG4ifQ== -->
 <pre><code>
+
+
+&lt;!-- rnb-output-end --&gt;
+
+&lt;!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHVZR0JnY2x4dWRHVnpkQ0E4TFNCeWIzTmhYMk5wWDNSbGMzUW9XU0IrSUZnZ2ZDQmFNU0FySUZveUxDQmtZWFJoSUQwZ1pHRjBLVnh1Y0hKcGJuUW9kR1Z6ZENsY2JtQmdZRnh1WUdCZ0luMD0gLS0+XG5cbmBgYHJcbmBgYHJcbnRlc3QgPC0gcm9zYV9jaV90ZXN0KFkgfiBYIHwgWjEgKyBaMiwgZGF0YSA9IGRhdClcbnByaW50KHRlc3QpXG5gYGBcbmBgYFxuXG48IS0tIHJuYi1zb3VyY2UtZW5kIC0tPlxuIn0= --&gt;
+
+
+&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxudGVzdCA8LSByb3NhX2NpX3Rlc3QoWSB+IFggfCBaMSArIFoyLCBkYXRhID0gZGF0KVxucHJpbnQodGVzdClcbmBgYFxuYGBgIn0= --&gt;
+
+```r
+```r
+test &lt;- rosa_ci_test(Y ~ X | Z1 + Z2, data = dat)
+print(test)
+```
+```
+
+&lt;!-- rnb-source-end --&gt;
+
+
+&lt;!-- rnb-output-end --&gt;
+
+&lt;!-- rnb-output-begin eyJkYXRhIjoiXG5cdFJPU0EgcmVzaWR1YWwgdGVzdCBmb3IgWCBffHxfIFkgfCBaIChydiwgY29uZGl0aW9uYWwgcGVybXV0YXRpb24sIGN2IHJlc2lkdWFscylcblxuZGF0YTogIFkgfiBYIHwgWjEgKyBaMlxuc3RhdCA9IDAuMDEzNTI5LCBwLXZhbHVlID0gMC4yMTlcbmFsdGVybmF0aXZlIGh5cG90aGVzaXM6IFggYW5kIFkgYXJlIGRlcGVuZGVudCBnaXZlbiBaXG4ifQ== --&gt;
+
+```
+
     ROSA residual test for X _||_ Y | Z (rv, conditional permutation, cv residuals)
 
 data:  Y ~ X | Z1 + Z2
 stat = 0.013529, p-value = 0.219
-alternative hypothesis: X and Y are dependent given Z</code></pre>
-<!-- rnb-output-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-</div>
-<div id="multixg_ci_test-xgboost-blokk-betinget-uavhengighet" class="section level2">
-<h2>multixg_ci_test (XGBoost blokk betinget uavhengighet)</h2>
-<p>Denne metoden er litt mer experimentell, og er basert på å bruke
-XGBoost til å fjerne Z fra X og Y.</p>
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHViWFZzZEdsNFoxOWphVjkwWlhOMEtGa2dmaUJZSUh3Z1dqRWdLeUJhTWl3Z1pHRjBZU0E5SUdSaGRDbGNibUJnWUNKOSAtLT5cblxuYGBgclxubXVsdGl4Z19jaV90ZXN0KFkgfiBYIHwgWjEgKyBaMiwgZGF0YSA9IGRhdClcbmBgYFxuXG48IS0tIHJuYi1zb3VyY2UtZW5kIC0tPlxuIn0= -->
+alternative hypothesis: X and Y are dependent given Z
+```
+
+
+
+&lt;!-- rnb-output-end --&gt;
+
+&lt;!-- rnb-chunk-end --&gt;
+
+
+&lt;!-- rnb-text-begin --&gt;
+
+## multixg_ci_test (XGBoost blokk betinget uavhengighet)
+Denne metoden er litt mer experimentell, og er basert på å bruke XGBoost til å fjerne Z fra X og Y. 
+
+
+&lt;!-- rnb-text-end --&gt;
+
+
+&lt;!-- rnb-chunk-begin --&gt;
+
+
+&lt;!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHViWFZzZEdsNFoxOWphVjkwWlhOMEtGa2dmaUJZSUh3Z1dqRWdLeUJhTWl3Z1pHRjBZU0E5SUdSaGRDbGNibUJnWUNKOSAtLT5cblxuYGBgclxubXVsdGl4Z19jaV90ZXN0KFkgfiBYIHwgWjEgKyBaMiwgZGF0YSA9IGRhdClcbmBgYFxuXG48IS0tIHJuYi1zb3VyY2UtZW5kIC0tPlxuIn0= --&gt;
+</code></pre>
 <!-- rnb-source-begin eyJkYXRhIjoiYGBgclxubXVsdGl4Z19jaV90ZXN0KFkgfiBYIHwgWjEgKyBaMiwgZGF0YSA9IGRhdClcbmBgYCJ9 -->
 <pre class="r"><code>multixg_ci_test(Y ~ X | Z1 + Z2, data = dat)</code></pre>
 <!-- rnb-source-end -->
+<p>````</p>
 <!-- rnb-output-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiXG5cdFhHQm9vc3QgY3Jvc3MtZml0dGVkIHJlc2lkdWFsIHRlc3QgZm9yIFggX3x8XyBZIHwgWiAocnYsIGNvbmRpdGlvbmFsXG5cdHBlcm11dGF0aW9uLCA1IGZvbGRzKVxuXG5kYXRhOiAgWSB+IFggfCBaMSArIFoyXG5zdGF0ID0gMC4xMDMyNywgcC12YWx1ZSA9IDAuMDAxXG5hbHRlcm5hdGl2ZSBoeXBvdGhlc2lzOiBYIGFuZCBZIGFyZSBkZXBlbmRlbnQgZ2l2ZW4gWlxuIn0= -->
+<!-- rnb-output-begin eyJkYXRhIjoiXG48IS0tIHJuYi1zb3VyY2UtYmVnaW4gZXlKa1lYUmhJam9pWUdCZ2NseHVZR0JnY2x4dWJYVnNkR2w0WjE5amFWOTBaWE4wS0ZrZ2ZpQllJSHdnV2pFZ0t5QmFNaXdnWkdGMFlTQTlJR1JoZENsY2JtQmdZRnh1WUdCZ0luMD0gLS0+XG5cbmBgYHJcbmBgYHJcbm11bHRpeGdfY2lfdGVzdChZIH4gWCB8IFoxICsgWjIsIGRhdGEgPSBkYXQpXG5gYGBcbmBgYFxuXG48IS0tIHJuYi1zb3VyY2UtZW5kIC0tPlxuIn0= -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxubXVsdGl4Z19jaV90ZXN0KFkgfiBYIHwgWjEgKyBaMiwgZGF0YSA9IGRhdClcbmBgYFxuYGBgIn0= -->
+<pre class="r"><code>```r
+multixg_ci_test(Y ~ X | Z1 + Z2, data = dat)</code></pre>
 <pre><code>
-    XGBoost cross-fitted residual test for X _||_ Y | Z (rv, conditional
-    permutation, 5 folds)
+&lt;!-- rnb-source-end --&gt;
 
-data:  Y ~ X | Z1 + Z2
-stat = 0.10327, p-value = 0.001
-alternative hypothesis: X and Y are dependent given Z</code></pre>
+
+&lt;!-- rnb-output-end --&gt;
+
+&lt;!-- rnb-output-begin eyJkYXRhIjoiXG5cdFhHQm9vc3QgY3Jvc3MtZml0dGVkIHJlc2lkdWFsIHRlc3QgZm9yIFggX3x8XyBZIHwgWiAocnYsIGNvbmRpdGlvbmFsXG5cdHBlcm11dGF0aW9uLCA1IGZvbGRzKVxuXG5kYXRhOiAgWSB+IFggfCBaMSArIFoyXG5zdGF0ID0gMC4xMDMyNywgcC12YWx1ZSA9IDAuMDAxXG5hbHRlcm5hdGl2ZSBoeXBvdGhlc2lzOiBYIGFuZCBZIGFyZSBkZXBlbmRlbnQgZ2l2ZW4gWlxuIn0= --&gt;
+</code></pre>
+<pre><code>XGBoost cross-fitted residual test for X _||_ Y | Z (rv, conditional
+permutation, 5 folds)</code></pre>
+<p>data: Y ~ X | Z1 + Z2 stat = 0.10327, p-value = 0.001 alternative
+hypothesis: X and Y are dependent given Z ```</p>
 <!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
@@ -1948,7 +2015,7 @@ tilfeller.</p>
 </div>
 </div>
 
-<div id="rmd-source-code">LS0tDQp0aXRsZTogIkJsb2NrIENJIE5vdGVib29rIg0Kb3V0cHV0OiBodG1sX25vdGVib29rDQotLS0NCmBgYHtyfQ0KbGlicmFyeShDYXVzYWxCbG9ja3MpDQpgYGANCg0KRGVubmUgbm90ZWJvb2tlbiBmb3Jzw7hrZXIgw6UgZGVra2UgaHZhIHNvbSBlciBibGl0dCBnam9ydCBpIHByb3NqZWt0ZXQgbWVkIMOlIGxhZ2UgYmV0aW5nZXQgdWF2aGVuZ2lnaGV0c3Rlc3RpbmcgbWVsbG9tIG1hdHJpc2VyL2Jsb2trZXIuIFNrcmV2ZXQgYXYgbWVnIHNlbHYsIHRpbCBtZWcgc2VsdiwgZm9yIMO4a3QgZm9yc3TDpWVsc2UNCg0KRGV0IGVyIHRvIGdlbmVyZWxsZSB0aWxuw6ZybWluZ2VyIHRpbCBwcm9ibGVtZXQgw6UgdGVzdGUgbnVsbCBoeXBvdGVzZW4gJFkgXHBlcnAgWCB8IFokIChicnVrZXIgJFxwZXJwJCBzb20gdWF2aGVuZ2lnaGV0c3RlZ24pIG7DpXIgJFksIFgsIFokIGVyIGJsb2trZXIgbWVkIGRhdGEsIGFsdHPDpSBtYXRyaXNlci4gRGV0IGbDuHJzdGUgdGlsbsOmcm1pbmdlbiBlciDDpSBlc3RpbWVyZSB0byBibG9rayByZWdyZXNqb25lciwgbmVtbGlnICRZIH4gWiQgb2cgJFggfiBaJCBmb3Igc8OlIMOlIGJlcmVnbmUgdG8gcmVzaWR1YWxtYXRyaXNlciAkUl9ZJCBvZyAkUl9YJCwgZGVyZXR0ZXIgdGVzdGUgb20gZGlzc2UgdG8gcmVzaWR1YWxtYXRyaXNlbmUga29ycmVsZXJlci4gRGV0dGUgZXIgZGlyZWt0ZSBhbmFsb2d0IHRpbCBlbiB2YW5saWcgdGVzdG1ldG9kaWtrIGkgZGV0IHVuaXZhcmlhdGUgdGlsZmVsbGUuIERlbiBhbmRyZSB0aWxuw6ZybWluZ2VuIGVyIMOlIHNhbW1lbmxpZ2VuIHByZWRpa3Nqb25za3JhZnRlbiB0aWwgZGUgdG8gYmxva2tyZWdyZXNqb25zbGlnbmluZ2VuZSAkWSB+IFggKyBaJCBvZyAkWSB+IFheciArIFokLCBodm9yICRYXnIkIGVyIGVuIHJvdGVydCAoZWxsZXIgcGVybXV0ZXJ0KSB2ZXJzam9uIGF2ICRYJC4gRXIgcHJlZGlrc2pvbnNrcmFmdGVuIHRpbCAkWSB+IFggKyBaJCBiZWRyZSBlbm4gICRZIH4gWF5yICsgWiQsIGVyIGRldCBncnVubmxhZyBmb3Igw6UgZm9ya2FzdGUgbnVsbCBoeXBvdGVzZW4gc2lkZW4gdW5kZXIgbnVsbCBza2FsIGlra2UgZGV0dGUgdsOmcmUgdGlsZmVsbGUuIA0KDQojIFRlc3RpbmcgY29uZGl0aW9uYWwgaW5kZXBlbmRlbmNlIGJldHdlZW4gYmxvY2tzDQpGw7hyc3QgcHJlc2VudGVyZXMgbWV0b2RlciBiYXNlcnQgcMOlIMOlIGZpbm5lIHJlc2lkdWFsbWF0cmlzZW5lICgkUl9ZJCBvZyAkUl9YJCkNCiMjIHBsc19jaV90ZXN0IChQTFMgYmxva2sgYmV0aW5nZXQgdWF2aGVuZ2lnaGV0KSANCg0KSSBmdW5rc2pvbmVuIGBQU0xfY2lfdGVzdGAgZXIgcmVncmVzam9uZW5lICRZIH4gWiQgb2cgJFggfiBaJCBnam9ydCBtZWQgUExTIHJlZ3Jlc2pvbi4gS29ycmVsYXNqb25lbiBtZWxsb20gcmVzaWR1YWxtYXRyaXNlbmUga2FuIG3DpWxlcyBtZWQgUlYta29lZmZpc2llbnQsIGbDuHJzdGUga2Fub25pc2tlIGtvcnJlbGFzam9uIGVsbGVyIGRpc3RhbnNla29ycmVsYXNqb24uDQoNClJWLWtvZWZmaXNpZW50IGVyIGdpdHQgbWVkICRSVihSX1ksIFJfWCkgPSB8fFJfWV5UUl9YfHxfRl4yIC8ofHxSX1leVCBSX1l8fF9GIHx8Ul9YXlQgUl9YfHxeMl9GKSQsIGh2b3IgJHx8QXx8X0YkIGVyIEZyb2Jlbml1cy1ub3JtZW4gdGlsIG1hdHJpc2UgQS4gUlYta29lZmZpc2llbnQgZXIgdmVrdG9ydmFyaWFudGVuIGF2IGtvcnJlbGFzam9uIGh2b3IgJHx8Ul9ZXlRSX1h8fF9GXjIkIHRpbHN2YXJlciBDb3YoWSxYKSBvZyAkfHxSX1leVCBSX1l8fF9GIHx8Ul9YXlQgUl9YfHxeMl9GJCB0aWxzdmFyZXIgJFxzcXJ0KFZhcihZKVZhcihYKSkkLiAgDQoNCkbDuHJzdGUga2Fub25pc2tlIGtvcnJlbGFzam9uIGVyIGRlbiBow7h5ZXN0ZSBrb3JyZWxzYWpvbmVuIGRldCBlciBtdWxpZyDDpSBvcHBkcml2ZSB2ZWQgw6Uga29tYmluZXJlIGtvbG9ubmVuIGkgbWF0cmlzZW5lICRSX1kkIG9nICRSX1gkLCBtZWQgdmVrdGVuZSAkYSQgb2cgJGIkLiANCg0KRGlzdGFuc2Vrb3JyZWxhc2pvbiBlciBnaXR0IG1lZCAkZENPcl4yID0gXGZyYWN7ZENvdl4yKFJfWCxSX1kpfXtcc3FydChkQ292XjIoWCxYKWRDb3ZeMihZLFkpKX0kIGh2b3IgJGRDb3ZeMihSX1gsUl9ZKSA9IFxmcmFjezF9e259XHN1bV97aSxqfShBX3tpLGp9Ql97aSxqfSkkLCBvZyAkQV97aSxqfSQgZXIgZW4gZG9iYmVsdHNlbnRlcmV0IGF2c3RhbmRzbWF0cmlzZSBhdiAkUl9YJCwgb2cgJEJfe2ksan0kIGVyIHRpbHN2YXJlbmRlIGZvciAkUl9ZJC4NCg0KRm9yZGVsZW4gbWVkIMOlIGJydWtlIGRpc3RhbnNla29ycmVsYXNqb24sIGVyIGF0IGRlbiBrYW4gZmFuZ2Ugb20gaWtrZSBsaW5lw6ZyZSBzYW1tZW5oZW5nZXIgaSByZXNpZHVhbGVuZS4gUlYta29lZmZpc2llbnRlbiBlciBmb3JkZWxha3RpZyBvbSBrb3JyZWxhc2pvbmVuIG1lbGxvbSAkUl9YJCBvZiAkUl9ZJCBlciBmb3JkZWx0IGpldm50IG92ZXIgcmVzaWR1YWxlbmUsIG1lbnMgZsO4cnN0ZSBrYW5vbmlza2Uga29ycmVsYXNqb24gZXIgYmVkcmUgb20ga29ycmVsYXNqb24gbWVsbG9tIG1hdHJpc2VuZSBlciBrbnl0dGV0IHRpbCBub2VuIGbDpSBrb2xvbm5lciBtZWQgcmVzaWR1YWxlci4gDQoNCkkgYWxsZSB0aWxmZWxsZW4gc8OlIHNhbW1lbmxpZ25lcyBiZXJlZ25ldCB2ZXJkaSBtZWQgZW4gbnVsbC1mb3JkZWxpbmcgZ2VuZXJlcmV0IHZlZCDDpSBwZXJtdXRlcmUgcmVzaWR1YWxlbmUgYEIgPSBgIGdhbmdlciAodnVyZGVyZSByb3Rhc2pvbiBoZXIpLiANCg0KIyMjIEVrc2VtcGVsDQpGw7hyc3Qgc8OlIHNpbXVsZXJlciB2aSBsaXR0IGRhdGEuIA0KYGBge3J9DQpzaW1fMSA8LSBmdW5jdGlvbihuID0gNTAwLCBwID0gNikgew0KICBaMSA8LSBtYXRyaXgoc3RhdHM6OnJub3JtKG4gKiBwKSwgbiwgcCkNCiAgWjIgPC0gbWF0cml4KHN0YXRzOjpybm9ybShuICogcCksIG4sIHApDQogIFogIDwtIGNiaW5kKFoxLCBaMikNCiAgDQogIFggIDwtIFogJSolIG1hdHJpeChzdGF0czo6cm5vcm0oMiAqIHAgKiBwKSwgMiAqIHAsIHApICsgbWF0cml4KHN0YXRzOjpybm9ybShuICogcCksIG4sIHApDQogIFkgIDwtIFogJSolIG1hdHJpeChzdGF0czo6cm5vcm0oMiAqIHAgKiBwKSwgMiAqIHAsIHApICsgbWF0cml4KHN0YXRzOjpybm9ybShuICogcCksIG4sIHApDQogIGxpc3QoWSA9IFksIFggPSBYLCBaMSA9IFoxLCBaMiA9IFoyKQ0KfQ0Kc2V0LnNlZWQoMSkNCmRhdCA8LSBzaW1fMSgpDQpgYGANCkkgYGRhdGAgZXIgZGV0IGZpcmUgYmxva2tlci9tYXRyaXNlciBtZWQgZGF0YSAoYFoxLCBaMiwgWCwgWWApLiBBbGxlIG1hdHJpc2VuZSBlciBhdiBzdMO4cnJlbHNlIDUwMCBnYW5nZXIgNiwgb2cgbWFuIGhhciAgJFkgXHBlcnAgWCB8IFpfMSwgWl8yJC4gRsO4cnN0IHRlc3RlciB2aSBlbiBzYW5uIHVhdmhlbmdpZ2hldC4NCg0KYGBge3J9DQpzZXQuc2VlZCgyKQ0KdGVzdDEgPC0gcGxzX2NpX3Rlc3QoWSB+IFggfCBaMSArIFoyLCBkYXRhID0gZGF0KQ0KcHJpbnQodGVzdDEpDQpgYGANClPDpSBlbiBoeXBvdGVzZSBzb20gaWtrZSBob2xkZXI7DQpgYGB7cn0NCnRlc3QyIDwtIHBsc19jaV90ZXN0KFkgfiBYIHwgWjEsIGRhdGEgPSBkYXQpDQpwcmludCh0ZXN0MikNCmBgYA0KQmFzZXJ0IHDDpSBwLXZlcmRpZXIgZm9ya2FzdGVzIG51bGwgaHlwb3Rlc2VuIGtvcnJla3QuIE9tIG1hbiB2aWwgZW5kcmUgaHZvcmRhbiBrb3JyZWxhc2pvbiBiZXJlZ25lcywgYnJ1a2VyIG1hbiBhcmd1bWVudGV0IGBzdGF0YC4NCmBgYHtyfQ0KdGVzdCA8LSBwbHNfY2lfdGVzdChZIH4gWCB8IFoxLCBkYXRhID0gZGF0LCBzdGF0ID0gImRjb3IiKQ0KcHJpbnQodGVzdCkNCmBgYA0KDQojIyByb3NhX2NpX3Rlc3QgKFBMUyBibG9rayBiZXRpbmdldCB1YXZoZW5naWdoZXQpIA0KUk9TQSAocmVzcG9uc2Utb3JpZW50ZWQgc2VxdWVudGlhbCBhbHRlcm5hdGlvbiBgbXVsdGlibG9jazo6cm9zYWApIHJlZ3Jlc2pvbi4gSGVuc2lrdGVuIG1lZCBkZW5uZSBtZXRvZGVuIGVyIGF0IGRlbiBlciBwb3RlbnNpZWx0IGVuZGEgcmFza2VyZSBlbm4gUExTIGJhc2VydCBtZXRvZGUuIA0KDQpgYGB7cn0NCnRlc3QgPC0gcm9zYV9jaV90ZXN0KFkgfiBYIHwgWjEgKyBaMiwgZGF0YSA9IGRhdCkNCnByaW50KHRlc3QpDQpgYGANCiMjIG11bHRpeGdfY2lfdGVzdCAoWEdCb29zdCBibG9rayBiZXRpbmdldCB1YXZoZW5naWdoZXQpDQpEZW5uZSBtZXRvZGVuIGVyIGxpdHQgbWVyIGV4cGVyaW1lbnRlbGwsIG9nIGVyIGJhc2VydCBww6Ugw6UgYnJ1a2UgWEdCb29zdCB0aWwgw6UgZmplcm5lIFogZnJhIFggb2cgWS4gDQoNCmBgYHtyfQ0KbXVsdGl4Z19jaV90ZXN0KFkgfiBYIHwgWjEgKyBaMiwgZGF0YSA9IGRhdCkNCmBgYA0KDQoNCiMjIFNPUExTLkNDSS50ZXN0KCkNCkRlbm5lIG1ldG9kZW4gYmVueXR0ZXIgU08tUExTIChzZXF1ZW50aWFsIGFuZCBvcnRob2dvbmFsaXplZCBQTFMpIGZvciDDpSBmamVybmUgWiBmcmEgWCBvZyBZLiBTTy1QTFMgZXIgZW4gbWV0b2RlIHNvbSBlciBsYWdldCBmb3Igw6UgaMOlbmR0ZXJlIGZsZXJlIGJsb2trZXIgbWVkIGRhdGEsIG9nIGthbiB2w6ZyZSBtZXIgZWZmZWt0aXYgZW5uIFBMUyBvZyBST1NBIGkgbm9lbiB0aWxmZWxsZXIuDQoNCiANCg==</div>
+<div id="rmd-source-code">LS0tDQp0aXRsZTogIkJsb2NrIENJIE5vdGVib29rIg0Kb3V0cHV0OiBodG1sX25vdGVib29rDQotLS0NCmBgYHtyfQ0KbGlicmFyeShDYXVzYWxCbG9ja3MpDQpgYGANCg0KRGVubmUgbm90ZWJvb2tlbiBmb3Jzw7hrZXIgw6UgZGVra2UgaHZhIHNvbSBlciBibGl0dCBnam9ydCBpIHByb3NqZWt0ZXQgbWVkIMOlIGxhZ2UgYmV0aW5nZXQgdWF2aGVuZ2lnaGV0c3Rlc3RpbmcgbWVsbG9tIG1hdHJpc2VyL2Jsb2trZXIuIFNrcmV2ZXQgYXYgbWVnIHNlbHYsIHRpbCBtZWcgc2VsdiwgZm9yIMO4a3QgZm9yc3TDpWVsc2UNCg0KRGV0IGVyIHRvIGdlbmVyZWxsZSB0aWxuw6ZybWluZ2VyIHRpbCBwcm9ibGVtZXQgw6UgdGVzdGUgbnVsbCBoeXBvdGVzZW4gJFkgXHBlcnAgWCB8IFokIChicnVrZXIgJFxwZXJwJCBzb20gdWF2aGVuZ2lnaGV0c3RlZ24pIG7DpXIgJFksIFgsIFokIGVyIGJsb2trZXIgbWVkIGRhdGEsIGFsdHPDpSBtYXRyaXNlci4gRGV0IGbDuHJzdGUgdGlsbsOmcm1pbmdlbiBlciDDpSBlc3RpbWVyZSB0byBibG9rayByZWdyZXNqb25lciwgbmVtbGlnICRZIH4gWiQgb2cgJFggfiBaJCBmb3Igc8OlIMOlIGJlcmVnbmUgdG8gcmVzaWR1YWxtYXRyaXNlciAkUl9ZJCBvZyAkUl9YJCwgZGVyZXR0ZXIgdGVzdGUgb20gZGlzc2UgdG8gcmVzaWR1YWxtYXRyaXNlbmUga29ycmVsZXJlci4gRGV0dGUgZXIgZGlyZWt0ZSBhbmFsb2d0IHRpbCBlbiB2YW5saWcgdGVzdG1ldG9kaWtrIGkgZGV0IHVuaXZhcmlhdGUgdGlsZmVsbGUuIERlbiBhbmRyZSB0aWxuw6ZybWluZ2VuIGVyIMOlIHNhbW1lbmxpZ2VuIHByZWRpa3Nqb25za3JhZnRlbiB0aWwgZGUgdG8gYmxva2tyZWdyZXNqb25zbGlnbmluZ2VuZSAkWSB+IFggKyBaJCBvZyAkWSB+IFheciArIFokLCBodm9yICRYXnIkIGVyIGVuIHJvdGVydCAoZWxsZXIgcGVybXV0ZXJ0KSB2ZXJzam9uIGF2ICRYJC4gRXIgcHJlZGlrc2pvbnNrcmFmdGVuIHRpbCAkWSB+IFggKyBaJCBiZWRyZSBlbm4gICRZIH4gWF5yICsgWiQsIGVyIGRldCBncnVubmxhZyBmb3Igw6UgZm9ya2FzdGUgbnVsbCBoeXBvdGVzZW4gc2lkZW4gdW5kZXIgbnVsbCBza2FsIGlra2UgZGV0dGUgdsOmcmUgdGlsZmVsbGUuIA0KDQojIFRlc3RpbmcgY29uZGl0aW9uYWwgaW5kZXBlbmRlbmNlIGJldHdlZW4gYmxvY2tzDQpGw7hyc3QgcHJlc2VudGVyZXMgbWV0b2RlciBiYXNlcnQgcMOlIMOlIGZpbm5lIHJlc2lkdWFsbWF0cmlzZW5lICgkUl9ZJCBvZyAkUl9YJCkNCiMjIHBsc19jaV90ZXN0IChQTFMgYmxva2sgYmV0aW5nZXQgdWF2aGVuZ2lnaGV0KSANCg0KSSBmdW5rc2pvbmVuIGBQU0xfY2lfdGVzdGAgZXIgcmVncmVzam9uZW5lICRZIH4gWiQgb2cgJFggfiBaJCBnam9ydCBtZWQgUExTIHJlZ3Jlc2pvbi4gS29ycmVsYXNqb25lbiBtZWxsb20gcmVzaWR1YWxtYXRyaXNlbmUga2FuIG3DpWxlcyBtZWQgUlYta29lZmZpc2llbnQsIGbDuHJzdGUga2Fub25pc2tlIGtvcnJlbGFzam9uIGVsbGVyIGRpc3RhbnNla29ycmVsYXNqb24uDQoNClJWLWtvZWZmaXNpZW50IGVyIGdpdHQgbWVkICRSVihSX1ksIFJfWCkgPSB8fFJfWV5UUl9YfHxfRl4yIC8ofHxSX1leVCBSX1l8fF9GIHx8Ul9YXlQgUl9YfHxeMl9GKSQsIGh2b3IgJHx8QXx8X0YkIGVyIEZyb2Jlbml1cy1ub3JtZW4gdGlsIG1hdHJpc2UgQS4gUlYta29lZmZpc2llbnQgZXIgdmVrdG9ydmFyaWFudGVuIGF2IGtvcnJlbGFzam9uIGh2b3IgJHx8Ul9ZXlRSX1h8fF9GXjIkIHRpbHN2YXJlciBDb3YoWSxYKSBvZyAkfHxSX1leVCBSX1l8fF9GIHx8Ul9YXlQgUl9YfHxeMl9GJCB0aWxzdmFyZXIgJFxzcXJ0KFZhcihZKVZhcihYKSkkLiAgDQoNCkbDuHJzdGUga2Fub25pc2tlIGtvcnJlbGFzam9uIGVyIGRlbiBow7h5ZXN0ZSBrb3JyZWxzYWpvbmVuIGRldCBlciBtdWxpZyDDpSBvcHBkcml2ZSB2ZWQgw6Uga29tYmluZXJlIGtvbG9ubmVuIGkgbWF0cmlzZW5lICRSX1kkIG9nICRSX1gkLCBtZWQgdmVrdGVuZSAkYSQgb2cgJGIkLiANCg0KRGlzdGFuc2Vrb3JyZWxhc2pvbiBlciBnaXR0IG1lZCAkZENPcl4yID0gXGZyYWN7ZENvdl4yKFJfWCxSX1kpfXtcc3FydChkQ292XjIoWCxYKWRDb3ZeMihZLFkpKX0kIGh2b3IgJGRDb3ZeMihSX1gsUl9ZKSA9IFxmcmFjezF9e259XHN1bV97aSxqfShBX3tpLGp9Ql97aSxqfSkkLCBvZyAkQV97aSxqfSQgZXIgZW4gZG9iYmVsdHNlbnRlcmV0IGF2c3RhbmRzbWF0cmlzZSBhdiAkUl9YJCwgb2cgJEJfe2ksan0kIGVyIHRpbHN2YXJlbmRlIGZvciAkUl9ZJC4NCg0KRm9yZGVsZW4gbWVkIMOlIGJydWtlIGRpc3RhbnNla29ycmVsYXNqb24sIGVyIGF0IGRlbiBrYW4gZmFuZ2Ugb20gaWtrZSBsaW5lw6ZyZSBzYW1tZW5oZW5nZXIgaSByZXNpZHVhbGVuZS4gUlYta29lZmZpc2llbnRlbiBlciBmb3JkZWxha3RpZyBvbSBrb3JyZWxhc2pvbmVuIG1lbGxvbSAkUl9YJCBvZiAkUl9ZJCBlciBmb3JkZWx0IGpldm50IG92ZXIgcmVzaWR1YWxlbmUsIG1lbnMgZsO4cnN0ZSBrYW5vbmlza2Uga29ycmVsYXNqb24gZXIgYmVkcmUgb20ga29ycmVsYXNqb24gbWVsbG9tIG1hdHJpc2VuZSBlciBrbnl0dGV0IHRpbCBub2VuIGbDpSBrb2xvbm5lciBtZWQgcmVzaWR1YWxlci4gDQoNCkkgYWxsZSB0aWxmZWxsZW4gc8OlIHNhbW1lbmxpZ25lcyBiZXJlZ25ldCB2ZXJkaSBtZWQgZW4gbnVsbC1mb3JkZWxpbmcgZ2VuZXJlcmV0IHZlZCDDpSBwZXJtdXRlcmUgcmVzaWR1YWxlbmUgYEIgPSBgIGdhbmdlciAodnVyZGVyZSByb3Rhc2pvbiBoZXIpLiANCg0KIyMjIEVrc2VtcGVsDQpGw7hyc3Qgc8OlIHNpbXVsZXJlciB2aSBsaXR0IGRhdGEuIA0KYGBge3J9DQpzaW1fMSA8LSBmdW5jdGlvbihuID0gNTAwLCBwID0gNikgew0KICBaMSA8LSBtYXRyaXgoc3RhdHM6OnJub3JtKG4gKiBwKSwgbiwgcCkNCiAgWjIgPC0gbWF0cml4KHN0YXRzOjpybm9ybShuICogcCksIG4sIHApDQogIFogIDwtIGNiaW5kKFoxLCBaMikNCiAgDQogIFggIDwtIFogJSolIG1hdHJpeChzdGF0czo6cm5vcm0oMiAqIHAgKiBwKSwgMiAqIHAsIHApICsgbWF0cml4KHN0YXRzOjpybm9ybShuICogcCksIG4sIHApDQogIFkgIDwtIFogJSolIG1hdHJpeChzdGF0czo6cm5vcm0oMiAqIHAgKiBwKSwgMiAqIHAsIHApICsgbWF0cml4KHN0YXRzOjpybm9ybShuICogcCksIG4sIHApDQogIGxpc3QoWSA9IFksIFggPSBYLCBaMSA9IFoxLCBaMiA9IFoyKQ0KfQ0Kc2V0LnNlZWQoMSkNCmRhdCA8LSBzaW1fMSgpDQpgYGANCkkgYGRhdGAgZXIgZGV0IGZpcmUgYmxva2tlci9tYXRyaXNlciBtZWQgZGF0YSAoYFoxLCBaMiwgWCwgWWApLiBBbGxlIG1hdHJpc2VuZSBlciBhdiBzdMO4cnJlbHNlIDUwMCBnYW5nZXIgNiwgb2cgbWFuIGhhciAgJFkgXHBlcnAgWCB8IFpfMSwgWl8yJC4gRsO4cnN0IHRlc3RlciB2aSBlbiBzYW5uIHVhdmhlbmdpZ2hldC4NCg0KYGBge3J9DQpzZXQuc2VlZCgyKQ0KQmxvY2sucmVzaWQudGVzdChZIH4gWCB8IFoxICsgWjIsIGRhdGEgPSBkYXQpDQoNCmBgYA0KU8OlIGVuIGh5cG90ZXNlIHNvbSBpa2tlIGhvbGRlcjsNCmBgYHtyfQ0KQmxvY2sucmVzaWQudGVzdChZIH4gWCB8IFoxLCBkYXRhID0gZGF0KQ0KYGBgDQpCYXNlcnQgcMOlIHAtdmVyZGllciBmb3JrYXN0ZXMgbnVsbCBoeXBvdGVzZW4ga29ycmVrdC4gT20gbWFuIHZpbCBlbmRyZSBodm9yZGFuIGtvcnJlbGFzam9uIGJlcmVnbmVzLCBicnVrZXIgbWFuIGFyZ3VtZW50ZXQgYHN0YXRgLg0KYGBge3J9DQp0ZXN0IDwtIHBsc19jaV90ZXN0KFkgfiBYIHwgWjEsIGRhdGEgPSBkYXQsIHN0YXQgPSAiZGNvciIpDQpwcmludCh0ZXN0KQ0KYGBgDQoNCiMjIHJvc2FfY2lfdGVzdCAoUExTIGJsb2trIGJldGluZ2V0IHVhdmhlbmdpZ2hldCkgDQpST1NBIChyZXNwb25zZS1vcmllbnRlZCBzZXF1ZW50aWFsIGFsdGVybmF0aW9uIGBtdWx0aWJsb2NrOjpyb3NhYCkgcmVncmVzam9uLiBIZW5zaWt0ZW4gbWVkIGRlbm5lIG1ldG9kZW4gZXIgYXQgZGVuIGVyIHBvdGVuc2llbHQgZW5kYSByYXNrZXJlIGVubiBQTFMgYmFzZXJ0IG1ldG9kZS4gDQoNCmBgYHtyfQ0KdGVzdCA8LSByb3NhX2NpX3Rlc3QoWSB+IFggfCBaMSArIFoyLCBkYXRhID0gZGF0KQ0KcHJpbnQodGVzdCkNCmBgYA0KIyMgbXVsdGl4Z19jaV90ZXN0IChYR0Jvb3N0IGJsb2trIGJldGluZ2V0IHVhdmhlbmdpZ2hldCkNCkRlbm5lIG1ldG9kZW4gZXIgbGl0dCBtZXIgZXhwZXJpbWVudGVsbCwgb2cgZXIgYmFzZXJ0IHDDpSDDpSBicnVrZSBYR0Jvb3N0IHRpbCDDpSBmamVybmUgWiBmcmEgWCBvZyBZLiANCg0KYGBge3J9DQptdWx0aXhnX2NpX3Rlc3QoWSB+IFggfCBaMSArIFoyLCBkYXRhID0gZGF0KQ0KYGBgDQoNCg0KIyMgU09QTFMuQ0NJLnRlc3QoKQ0KRGVubmUgbWV0b2RlbiBiZW55dHRlciBTTy1QTFMgKHNlcXVlbnRpYWwgYW5kIG9ydGhvZ29uYWxpemVkIFBMUykgZm9yIMOlIGZqZXJuZSBaIGZyYSBYIG9nIFkuIFNPLVBMUyBlciBlbiBtZXRvZGUgc29tIGVyIGxhZ2V0IGZvciDDpSBow6VuZHRlcmUgZmxlcmUgYmxva2tlciBtZWQgZGF0YSwgb2cga2FuIHbDpnJlIG1lciBlZmZla3RpdiBlbm4gUExTIG9nIFJPU0EgaSBub2VuIHRpbGZlbGxlci4NCg0KIA0K</div>
 
 
 

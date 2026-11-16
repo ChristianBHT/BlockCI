@@ -37,12 +37,12 @@ one <- function(i) {
   p <- switch(g$test,
     "MC-rotation"    = Block.CCI.test(f, d, nperm = nperm, resampling = "rotation", progress = FALSE)$p.value,
     "MC-permutation" = Block.CCI.test(f, d, nperm = nperm, resampling = "permutation", progress = FALSE)$p.value,
-    "fast-NB"        = Block.CCI.fast(f, d, nsplit = 10, correction = "nadeau-bengio")$p.value,
-    "fast-none"      = Block.CCI.fast(f, d, nsplit = 10, correction = "none")$p.value,
-    "PLS-cond"       = pls_ci_test(f, d, B = nperm, perm = "conditional")$p.value,
-    "PLS-simple"     = pls_ci_test(f, d, B = nperm, perm = "simple")$p.value,
-    "ROSA-cond"      = rosa_ci_test(f, d, B = nperm, perm = "conditional")$p.value,
-    "ROSA-simple"    = rosa_ci_test(f, d, B = nperm, perm = "simple")$p.value)
+    "fast-NB"        = Block.CCI.fast(f, d, nsplit = 10, correction = "nadeau-bengio", progress = FALSE)$p.value,
+    "fast-none"      = Block.CCI.fast(f, d, nsplit = 10, correction = "none", progress = FALSE)$p.value,
+    "PLS-cond"       = Block.resid.test(f, d, method = "PLS", B = nperm, perm = "conditional")$p.value,
+    "PLS-simple"     = Block.resid.test(f, d, method = "PLS", B = nperm, perm = "simple")$p.value,
+    "ROSA-cond"      = Block.resid.test(f, d, method = "ROSA", B = nperm, perm = "conditional")$p.value,
+    "ROSA-simple"    = Block.resid.test(f, d, method = "ROSA", B = nperm, perm = "simple")$p.value)
   cbind(g, p.value = p, secs = as.numeric(difftime(Sys.time(), t0, units = "secs")))
 }
 nc <- max(1, parallel::detectCores() - 2)

@@ -1,4 +1,4 @@
-# Type I error and power of pls_ci_test() and rosa_ci_test() on large N and high-dimensional
+# Type I error and power of Block.resid.test() with method = "PLS" and "ROSA" on large N and high-dimensional
 # data with different noise (sim_scale(): gaussian, t3, laplace, skewed, hetero).
 #   H0: effect = 0 (Y _||_ X | Z1, Z2 true)       H1: local alternative effect = 0.06 * sqrt(1000 / n)
 # Cells:
@@ -15,7 +15,7 @@ alpha <- 0.05
 effect_for <- function(n) 0.06 * sqrt(1000 / n)
 
 fast <- list(ncomp = 12, resid = "fitted", perm = "simple", B = 199)
-cv   <- list(ncomp = "auto", max_ncomp = 12, resid = "cv", perm = "simple", B = 199, segments = 5)
+cv   <- list(ncomp = "auto", max_ncomp = 12, resid = "cv", perm = "simple", B = 199, nfolds = 5)
 all_noise <- c("gaussian", "t3", "laplace", "skewed", "hetero")
 sub_noise <- c("gaussian", "t3", "hetero")
 
@@ -43,7 +43,7 @@ run_job <- function(j, jobs, fast, cv, effect_for) {
   cfg <- if (g$setting == "fast") fast else cv
   f <- Y ~ X | Z1 + Z2
   do.call(rbind, lapply(c("pls", "rosa"), function(te) {
-    fn <- if (te == "pls") pls_ci_test else rosa_ci_test
+    fn <- function(...) Block.resid.test(..., method = toupper(te))
     t <- system.time(p <- do.call(fn, c(list(f, d), cfg))$p.value)[["elapsed"]]
     data.frame(g[, c("cell", "n", "p_z", "signal", "noise", "setting", "effect_on", "rep")], test = te, p.value = p, seconds = t)
   }))

@@ -19,6 +19,11 @@
 #' * `"PLS"`: ordinary PLS regression (`pls::plsr`) of Y on cbind(V) and on
 #'   cbind(V, X), so the block structure is not used. With `ncomp = "auto"` the
 #'   number of components of each model is chosen by inner CV.
+#' * `"ROSA"`: response-oriented sequential alternation (`multiblock::rosa`) of Y on
+#'   the V blocks and on the V blocks plus X, every block kept separate (each
+#'   component comes from the block that best explains the current Y residual).
+#'   With `ncomp = "auto"` the number of components of each model is chosen by
+#'   inner CV.
 #' * `"XGB"` (experimental, needs more work: type I error is not controlled on
 #'   nonlinear scenarios, see `LOG.md`): two multi-target XGBoost models (needs
 #'   xgboost >= 2.0), each trained with a fixed number of boosting rounds on all
@@ -40,20 +45,20 @@
 #'   after the bar is its own V block.
 #' @param data named list of matrices (or a data.frame). Rows with missing values
 #'   in any used variable are dropped.
-#' @param method regression method: `"SOPLS"` (default), `"PLS"`, `"XGB"`, `"RF"`
-#'   (case-insensitive) or a learner function (see Details).
+#' @param method regression method: `"SOPLS"` (default), `"PLS"`, `"ROSA"`, `"XGB"`,
+#'   `"RF"` (case-insensitive) or a learner function (see Details).
 #' @param p training fraction
-#' @param ncomp (`"SOPLS"`, `"PLS"`) `"auto"` (chosen by inner CV as described
+#' @param ncomp (`"SOPLS"`, `"PLS"`, `"ROSA"`) `"auto"` (chosen by inner CV as described
 #'   above) or fixed numbers of components. For `"SOPLS"`: `c(a_1, ..., a_k, b)`,
 #'   the components for each of the k V blocks, then the components added from X
-#'   (for a test without V, `c(0, b)`). For `"PLS"`: `c(a, b)`, the components of
-#'   Y ~ V and of Y ~ V + X.
-#' @param scale scale the blocks (`"SOPLS"`, `"PLS"`) and standardise Y
-#' @param max_ncomp (`"SOPLS"`, `"PLS"`) maximum number of components searched when
-#'   `ncomp = "auto"`: for `"SOPLS"` the maximum number of X components (default
-#'   5), for `"PLS"` the maximum for each of the two models (default 10). `NULL`
-#'   uses the method's default.
-#' @param cv_segments (`"SOPLS"`, `"PLS"`) number of CV segments for the inner
+#'   (for a test without V, `c(0, b)`). For `"PLS"` and `"ROSA"`: `c(a, b)`, the
+#'   components of Y ~ V and of Y ~ V + X.
+#' @param scale scale the blocks (`"SOPLS"`, `"PLS"`, `"ROSA"`) and standardise Y
+#' @param max_ncomp (`"SOPLS"`, `"PLS"`, `"ROSA"`) maximum number of components
+#'   searched when `ncomp = "auto"`: for `"SOPLS"` the maximum number of X
+#'   components (default 5), for `"PLS"` and `"ROSA"` the maximum for each of the
+#'   two models (default 10). `NULL` uses the method's default.
+#' @param cv_segments (`"SOPLS"`, `"PLS"`, `"ROSA"`) number of CV segments for the inner
 #'   selection
 #' @param method_args named list of method-specific options. For `"XGB"`:
 #'   `nrounds` (number of boosting rounds, 1000) and `params` (a list merged into
@@ -66,17 +71,23 @@
 #' @param split training rows (optional; if `NULL` a random split of `floor(p * n)`
 #'   rows is drawn). [Block.CCI.fast()] uses it to fit X and X* on the same split.
 #' @param losses if `TRUE`, return per-test-row squared errors as well
+#' @param yh0 (advanced) test-row predictions of M0 (Y ~ V) from an earlier call
+#'   with the same `data` (apart from X), `split` and settings, as returned with
+#'   `losses = TRUE`. M0 does not depend on X, so it is then not refitted: only M1
+#'   is fitted. [Block.CCI.fast()] uses this for the resampled X*.
 #' @return named vector `M0, M1, T = M1 - M0, a, b` (RMSEP scale). `a` and `b` are
 #'   the complexities of M0 and M1: for `"SOPLS"` the total number of V components
-#'   and the number of added X components; for `"PLS"` the components of Y ~ V and
-#'   of Y ~ V + X; for `"XGB"` the number of boosting rounds and for `"RF"` the
+#'   and the number of added X components; for `"PLS"` and `"ROSA"` the components
+#'   of Y ~ V and of Y ~ V + X; for `"XGB"` the number of boosting rounds and for `"RF"` the
 #'   number of trees (`a = 0` without V). With `losses = TRUE`: a list with `stats`
 #'   (that vector), `test` (the test rows), `l0` and `l1` (per-test-row squared
-#'   errors, summed over the Y columns, of M0 and M1).
+#'   errors, summed over the Y columns, of M0 and M1) and `yh0` (the test-row
+#'   predictions of M0, standardised Y scale).
 #' @export
 cci_test_gen <- function(formula, data, method = "SOPLS", p = 0.75, ncomp = "auto",
                          scale = TRUE, max_ncomp = NULL, cv_segments = 5,
-                         method_args = list(), split = NULL, losses = FALSE) {
+                         method_args = list(), split = NULL, losses = FALSE,
+                         yh0 = NULL) {
   learner <- .get_learner(method)
   cc <- .canonical(formula, data)
   Y <- cc$Y; X <- cc$X; V <- cc$V
@@ -91,8 +102,15 @@ cci_test_gen <- function(formula, data, method = "SOPLS", p = 0.75, ncomp = "aut
   Ys <- sweep(sweep(Y, 2, mu), 2, sdv, "/")
 
   opts <- list(ncomp = ncomp, scale = scale, max_ncomp = max_ncomp,
-               cv_segments = cv_segments, args = method_args)
+               cv_segments = cv_segments, args = method_args, fit_m0 = is.null(yh0))
   fit <- learner(Ys, X, V, train, test, opts)
+  if (!is.null(yh0)) {   # reuse the M0 predictions of an earlier call on the same split
+    yh0 <- as.matrix(yh0)
+    if (nrow(yh0) != length(test) || ncol(yh0) != ncol(Ys))
+      stop("`yh0` does not match the test rows of this split")
+    fit$yh0 <- yh0
+    fit$a <- NA
+  }
 
   Yt <- Ys[test, , drop = FALSE]
   M0 <- rmsep(Yt, fit$yh0)
@@ -101,5 +119,6 @@ cci_test_gen <- function(formula, data, method = "SOPLS", p = 0.75, ncomp = "aut
   if (!losses) return(out)
   # per-test-row squared errors (summed over Y columns) for M0 and M1
   list(stats = out, test = test,
-       l0 = rowSums((Yt - fit$yh0)^2), l1 = rowSums((Yt - fit$yh1)^2))
+       l0 = rowSums((Yt - fit$yh0)^2), l1 = rowSums((Yt - fit$yh1)^2),
+       yh0 = fit$yh0)
 }
