@@ -31,8 +31,7 @@ one_rep <- function(i, cells, n, B) {
     d <- dat[[ce$sim]]
     cc <- ns$.canonical(ce$f, d)
     Z <- do.call(cbind, cc$V)
-    rs <- ns$.multixg_residuals(cc$X, cc$Y, Z, nfolds = 5, nrounds = 300,
-                                early_stopping_rounds = 10, val_fraction = 0.2, params = list())
+    rs <- ns$.multixg_residuals(cc$X, cc$Y, Z, nfolds = 5, nrounds = 300, params = list())
     data.frame(cell = j, rep = i,
                p_conditional = ns$.resid_perm_test(rs$res_x, rs$res_y, Z, "rv", "conditional", B, 10)$p,
                p_simple      = ns$.resid_perm_test(rs$res_x, rs$res_y, Z, "rv", "simple", B, 10)$p)

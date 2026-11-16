@@ -1,6 +1,6 @@
 # Type I error and power of the three Monte Carlo CCI tests that differ only in the
-# regression: SOPLS.CCI.test (SO-PLS), PLS.CCI.test (plain PLS) and
-# multixgb.CCI.test (multi-target XGBoost). Rotation of X, empirical p-value.
+# regression: Block.CCI.test with method = "SOPLS", "PLS" (plain PLS) and
+# "XGB" (multi-target XGBoost). Rotation of X, empirical p-value.
 #
 # Truth (n rows, blocks Y, X, Z1, Z2) -- same cells as multixg_power.R:
 #   sim_1: X, Y both generated from (Z1, Z2)        -> H0 true given Z1,Z2; false given Z1
@@ -36,9 +36,9 @@ one_task <- function(task, cells, n) {
     d <- dat[[ce$sim]]
     t0 <- Sys.time()
     r <- suppressMessages(switch(task$method,
-      sopls = SOPLS.CCI.test(ce$f, d, nperm = B, progress = FALSE),
-      pls   = PLS.CCI.test(ce$f, d, nperm = B, progress = FALSE),
-      xgb   = multixgb.CCI.test(ce$f, d, nperm = B, progress = FALSE)))
+      sopls = Block.CCI.test(ce$f, d, method = "SOPLS", nperm = B, progress = FALSE),
+      pls   = Block.CCI.test(ce$f, d, method = "PLS", nperm = B, progress = FALSE),
+      xgb   = Block.CCI.test(ce$f, d, method = "XGB", nperm = B, progress = FALSE)))
     data.frame(method = task$method, cell = j, rep = task$rep, p = r$p.value, T = unname(r$statistic),
                secs = as.numeric(difftime(Sys.time(), t0, units = "secs")))
   }))

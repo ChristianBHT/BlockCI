@@ -7,8 +7,9 @@ Description: Causal discovery between blocks of data, where blocks are matrices
     measured on the same samples (different variables) or on the same variables
     (different samples, e.g. environments). Includes simulators with known
     ground truth, baseline discovery methods, and a computational conditional
-    independence test based on sequential orthogonal PLS (SO-PLS) with rotation
-    or permutation resampling, modelled on the CCI package.
+    independence test between blocks, modelled on the CCI package, with
+    sequential orthogonal PLS (SO-PLS), PLS, XGBoost or random forest
+    regression and rotation or permutation resampling.
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -19,7 +20,9 @@ Imports:
     utils,
     pls
 Suggests:
+    grf,
     testthat (>= 3.0.0),
     xgboost (>= 2.0.0)
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.1.1
+RoxygenNote: 7.3.3

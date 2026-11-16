@@ -21,7 +21,7 @@ one <- function(i) {
   # benchmark scenarios 1-4 are sim_2 ... sim_5 (sim_1 is the simple generator)
   d <- get(paste0("sim_", g$scenario + 1), envir = asNamespace("CausalBlocks"))(n)
   f <- if (g$cset == "Z1,Z2") Y ~ X | Z1 + Z2 else Y ~ X | Z1
-  r <- CausalBlocks::SOPLS.CCI.test(f, d, nperm = nperm, method = "rotation", progress = FALSE)
+  r <- CausalBlocks::Block.CCI.test(f, d, nperm = nperm, resampling = "rotation", progress = FALSE)
   cbind(g, n = n, H0_true = g$cset == "Z1,Z2" || g$scenario == 2, p.value = r$p.value)
 }
 cl <- parallel::makeCluster(max(1, parallel::detectCores() - 1)); on.exit(parallel::stopCluster(cl))

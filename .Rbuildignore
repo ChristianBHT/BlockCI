@@ -4,3 +4,4 @@
 ^LOG\.md$
 ^Causal Discovery Matrices\.tex$
 ^inst/benchmarks$
+^dev$

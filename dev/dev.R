@@ -1,0 +1,5 @@
+devtools::document()
+devtools::test()
+devtools::install_deps()
+devtools::load_all()
+devtools::install()

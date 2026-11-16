@@ -1,11 +1,15 @@
-# SO-PLS based Computational Conditional Independence test ------------------
+# Block Computational Conditional Independence (CCI) test --------------------
 # Tests Y _||_ X | V for matrices Y, X, V (V optional), mirroring the CCI package:
-#   SOPLS.CCI.test()  ~ CCI.test()   : user interface (formula + data)
-#   sopls_perm_test() ~ perm.test()  : builds the null distribution
-#   sopls_test_gen()  ~ test.gen()   : one MCCV statistic
-# Requires: multiblock (sopls)
+#   Block.CCI.test() ~ CCI.test()   : user interface (formula + data + method)
+#   cci_null_dist()  ~ perm.test()  : builds the null distribution
+#   cci_test_gen()   ~ test.gen()   : one MCCV statistic
+#   learners.R                      : the regression methods ("SOPLS", "PLS", "XGB", "RF")
+# Requires: multiblock (sopls), pls (plsr); xgboost and grf are optional
 
 # ---- helpers ---------------------------------------------------------------
+
+# `a %||% b`: a if it is not NULL, otherwise b
+`%||%` <- function(a, b) if (is.null(a)) b else a
 
 # Show a message only once per R session (per distinct text)
 .msg_env <- new.env(parent = emptyenv())
@@ -117,9 +121,9 @@ permute_X_cond <- function(X, V = NULL, group_size = 10) {
 }
 
 # A function that returns a fresh resampled copy X* of X each time it is called.
-# The V clusters for method = "conditional" are computed once.
-.make_resampler <- function(X, Vm, method, group_size = 10) {
-  switch(method,
+# The V clusters for resampling = "conditional" are computed once.
+.make_resampler <- function(X, Vm, resampling, group_size = 10) {
+  switch(resampling,
          rotation    = function() rotate_X(X, Vm),
          permutation = function() permute_X(X),
          conditional = {
@@ -134,6 +138,13 @@ permute_X_cond <- function(X, V = NULL, group_size = 10) {
 #'  @param y numeric vector of observed values
 #'  @param yhat numeric vector of predicted values
 rmsep <- function(y, yhat) sqrt(mean((y - yhat)^2))
+
+# Left-tail p-value assuming a normal null with the sample mean and sd of T0
+.parametric_p <- function(Tobs, T0) {
+  s <- stats::sd(T0)
+  if (!is.finite(s) || s == 0) return(NA_real_)
+  stats::pnorm(Tobs, mean = mean(T0), sd = s)
+}
 
 
 

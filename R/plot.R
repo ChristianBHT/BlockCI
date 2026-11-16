@@ -1,29 +1,31 @@
-#' Plot the null distribution of an SO-PLS CCI test
+#' Plot the null distribution of a block CCI test
 #'
-#' Histogram of the null statistics `T*` (from rotation or permutation of X) with
+#' Histogram of the null statistics `T*` (from resampled copies of X) with
 #' the observed statistic `T_obs` marked by a vertical line. For a parametric
 #' p-value the fitted normal curve is added.
 #'
-#' @param x a `SOPLSCCI` object from [SOPLS.CCI.test()]
+#' @param x a `BlockCCI` object from [Block.CCI.test()]
 #' @param breaks number of histogram bins (passed to [graphics::hist()])
-#' @param main plot title; the default shows the formula, resampling method and p-value
+#' @param main plot title; the default shows the formula, method, resampling and
+#'   p-value
 #' @param xlab x-axis label
 #' @param col_null,col_obs colours of the null bars and the observed-statistic line
 #' @param ... further arguments passed to [graphics::plot()]
 #' @return `x`, invisibly
 #' @examples
 #' \dontrun{
-#' r <- SOPLS.CCI.test(Y ~ X | Z1 + Z2, data, nperm = 99)
+#' r <- Block.CCI.test(Y ~ X | Z1 + Z2, data, nperm = 99)
 #' plot(r)
 #' }
 #' @export
-plot.SOPLSCCI <- function(x, breaks = 30, main = NULL, xlab = expression(T == M[1] - M[0]),
+plot.BlockCCI <- function(x, breaks = 30, main = NULL, xlab = expression(T == M[1] - M[0]),
                           col_null = "grey80", col_obs = "#1b9e77", ...) {
   T0 <- x$null.distribution
   Tobs <- unname(x$statistic)
   if (is.null(main)) {
-    main <- sprintf("%s  (%s, R = %d)\np = %.3f (%s)", paste(deparse(x$formula), collapse = ""),
-                    x$method, x$nperm, x$p.value, if (is.null(x$pvalue)) "empirical" else x$pvalue)
+    main <- sprintf("%s  (%s, %s, R = %d)\np = %.3f (%s)", paste(deparse(x$formula), collapse = ""),
+                    x$method, x$resampling, x$nperm, x$p.value,
+                    if (is.null(x$pvalue)) "empirical" else x$pvalue)
   }
   h <- graphics::hist(c(T0, Tobs), breaks = breaks, plot = FALSE)
   graphics::plot(h, col = col_null, border = "white", main = main, xlab = xlab,

@@ -1,4 +1,4 @@
-# Type I error of SOPLS.CCI.test in four H0 scenarios: Y _||_ X | Z1, Z2
+# Type I error of Block.CCI.test (SO-PLS) in four H0 scenarios: Y _||_ X | Z1, Z2
 # Usage (from the package root):  Rscript inst/benchmarks/h0_scenarios.R [reps] [nperm]
 # Installs the package into a temporary library so the working copy is what is tested.
 args  <- commandArgs(TRUE)
@@ -20,8 +20,8 @@ one <- function(i) {
   # benchmark scenarios 1-4 are sim_2 ... sim_5 (sim_1 is the simple generator)
   d <- get(paste0("sim_", g$scenario + 1), envir = asNamespace("CausalBlocks"))(g$n)
   t0 <- Sys.time()
-  r <- CausalBlocks::SOPLS.CCI.test(Y ~ X | Z1 + Z2, d, nperm = nperm, method = g$method, progress = FALSE)
-  cbind(g, p.value = r$p.value, a = r$ncomp_selected[["V"]], b = r$ncomp_selected[["X"]],
+  r <- CausalBlocks::Block.CCI.test(Y ~ X | Z1 + Z2, d, nperm = nperm, resampling = g$method, progress = FALSE)
+  cbind(g, p.value = r$p.value, a = r$complexity[["M0"]], b = r$complexity[["M1"]],
         secs = as.numeric(difftime(Sys.time(), t0, units = "secs")))
 }
 nc <- max(1, parallel::detectCores() - 1)
