@@ -10,8 +10,6 @@ multixg_ci_test(
   data,
   nfolds = 5,
   nrounds = 1000,
-  early_stopping_rounds = 10,
-  val_fraction = 0.2,
   params = list(),
   stat = c("rv", "cc1", "dcor"),
   perm = c("conditional", "simple"),
@@ -30,11 +28,7 @@ column-wise.}
 
 \item{nfolds}{number of cross-fitting folds.}
 
-\item{nrounds}{maximum number of boosting rounds.}
-
-\item{early_stopping_rounds}{early stopping patience.}
-
-\item{val_fraction}{share of each training part used as early-stopping validation.}
+\item{nrounds}{number of boosting rounds (fixed; no early stopping).}
 
 \item{params}{list merged into the xgboost parameters (defaults:
 \verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}).}
@@ -51,8 +45,8 @@ observations with similar Z) or \code{"simple"} (permute all rows).}
 \item{seed}{optional seed.}
 }
 \value{
-an object of class \code{"htest"} with the mean number of boosting rounds in
-\code{rounds} and the permutation statistics in \code{perm_stats}.
+an object of class \code{"htest"} with the number of boosting rounds in
+\code{nrounds} and the permutation statistics in \code{perm_stats}.
 }
 \description{
 \strong{Status: needs more work.} In simulations (\code{inst/benchmarks/multixg_power.R},
@@ -71,8 +65,9 @@ in \code{nfolds} folds, every fold is predicted by a model trained on the other 
 so no row is predicted by a model that has seen it. The residuals are then
 \verb{M - cross-fitted prediction} for M = X and M = Y.
 
-In each training part the targets are standardised (training mean and sd), and
-the number of boosting rounds is chosen by early stopping on a validation part
-(\code{val_fraction}) of that training part, so the held-out fold is never used for
-tuning.
+In each fold the targets are standardised with the training mean and sd, and
+one model with a fixed number of boosting rounds (\code{nrounds}, no early stopping)
+is trained on all the training rows. That model is used only to predict the
+held-out fold, so overfitting on the training rows does not leak into the
+residuals.
 }

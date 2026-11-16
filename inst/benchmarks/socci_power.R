@@ -12,9 +12,9 @@ t0 <- Sys.time()
 res <- sapply(c(H0 = 0, H1_0.6 = 0.6, H1_1.5 = 1.5), function(e)
   sapply(c("rotation", "permutation"), function(m)
     mean(sapply(seq_len(sims), function(i) {
-      d <- sim(200, e); SOPLS.CCI.test(Y ~ X | V, d, nperm = R, ncomp = "auto", method = m, progress = FALSE)$p.value
+      d <- sim(200, e); Block.CCI.test(Y ~ X | V, d, nperm = R, ncomp = "auto", resampling = m, progress = FALSE)$p.value
     }) < 0.05)))
 cat("ncomp = auto, rejection rate at 0.05 (", sims, "sims, R =", R, ")\n"); print(round(res, 2))
 cat("elapsed:", format(Sys.time() - t0), "\n")
-d <- sim(200, 1.5); print(SOPLS.CCI.test(Y ~ X | V, d, nperm = 49, seed = 1, progress = FALSE))
-cat("Unconditional (no V):\n"); print(SOPLS.CCI.test(Y ~ X, d, nperm = 49, seed = 1, progress = FALSE))
+d <- sim(200, 1.5); print(Block.CCI.test(Y ~ X | V, d, nperm = 49, seed = 1, progress = FALSE))
+cat("Unconditional (no V):\n"); print(Block.CCI.test(Y ~ X, d, nperm = 49, seed = 1, progress = FALSE))

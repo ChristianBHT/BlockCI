@@ -35,10 +35,10 @@ one <- function(i) {
   f <- Y ~ X | Z1 + Z2
   t0 <- Sys.time()
   p <- switch(g$test,
-    "MC-rotation"    = SOPLS.CCI.test(f, d, nperm = nperm, method = "rotation", progress = FALSE)$p.value,
-    "MC-permutation" = SOPLS.CCI.test(f, d, nperm = nperm, method = "permutation", progress = FALSE)$p.value,
-    "fast-NB"        = SOPLS.CCI.fast(f, d, nsplit = 10)$p.value,
-    "fast-none"      = SOPLS.CCI.fast(f, d, nsplit = 10, correction = "none")$p.value,
+    "MC-rotation"    = Block.CCI.test(f, d, nperm = nperm, resampling = "rotation", progress = FALSE)$p.value,
+    "MC-permutation" = Block.CCI.test(f, d, nperm = nperm, resampling = "permutation", progress = FALSE)$p.value,
+    "fast-NB"        = Block.CCI.fast(f, d, nsplit = 10, correction = "nadeau-bengio")$p.value,
+    "fast-none"      = Block.CCI.fast(f, d, nsplit = 10, correction = "none")$p.value,
     "PLS-cond"       = pls_ci_test(f, d, B = nperm, perm = "conditional")$p.value,
     "PLS-simple"     = pls_ci_test(f, d, B = nperm, perm = "simple")$p.value,
     "ROSA-cond"      = rosa_ci_test(f, d, B = nperm, perm = "conditional")$p.value,

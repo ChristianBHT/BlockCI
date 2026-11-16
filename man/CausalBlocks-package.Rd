@@ -12,10 +12,5 @@ simulators, baseline methods and an SO-PLS based conditional independence test.
 \author{
 \strong{Maintainer}: Christian Thorjussen \email{christianbern@gmail.com}
 
-Authors:
-\itemize{
-  \item Christian Thorjussen \email{christianbern@gmail.com}
-}
-
 }
 \keyword{internal}

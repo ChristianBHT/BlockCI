@@ -4,8 +4,8 @@ library(pbapply)
 
 # small tests
 data <- sim_1()
-SOPLS.CCI.test(Y ~ X | Z1 + Z2, data = data)
-SOPLS.CCI.test(Y ~ X | Z1, data = data)
+Block.CCI.test(Y ~ X | Z1 + Z2, data = data)
+Block.CCI.test(Y ~ X | Z1, data = data)
 pls_ci_test(Y ~ X | Z1 + Z2, data = data)
 pls_ci_test(Y ~ X | Z1, data = data)
 
@@ -35,7 +35,7 @@ design <- expand.grid(
 run_one <- function(i, n, effect, formula) {
   data <- sim_1(n = n, effect = effect)
   tryCatch(
-    SOPLS.CCI.test(formula, data = data, progress = FALSE)$p.value,
+    Block.CCI.test(formula, data = data, progress = FALSE)$p.value,
     error = function(e) NA_real_
   )
 }
