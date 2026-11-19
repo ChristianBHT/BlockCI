@@ -54,8 +54,10 @@ Block.CCI.fast <- function(formula, data, method = "SOPLS",
                            p = 0.5, nsplit = 10, nrot = 1, ncomp = "auto", scale = TRUE,
                            max_ncomp = NULL, cv_segments = 5, method_args = list(),
                            correction = c("none", "nadeau-bengio"),
-                           group_size = 10, seed = NA, progress = TRUE) {
+                           group_size = 10, seed = NA, progress = TRUE,
+                           reduce = c("none", "pca", "pls"), reduce_ncomp = "auto") {
   resampling <- match.arg(resampling)
+  reduce <- match.arg(reduce)
   correction <- match.arg(correction)
   learner <- .get_learner(method)
   method_name <- .method_name(method)
@@ -68,7 +70,8 @@ Block.CCI.fast <- function(formula, data, method = "SOPLS",
   gen <- function(dat, split, yh0 = NULL)
     cci_test_gen(cc$formula, dat, method = learner, p = p, ncomp = ncomp, scale = scale,
                  max_ncomp = max_ncomp, cv_segments = cv_segments,
-                 method_args = method_args, split = split, losses = TRUE, yh0 = yh0)
+                 method_args = method_args, split = split, losses = TRUE, yh0 = yh0,
+                 reduce = reduce, reduce_ncomp = reduce_ncomp)
 
   if (progress) {
     pb <- txtProgressBar(0, nsplit, style = 3)
@@ -96,7 +99,7 @@ Block.CCI.fast <- function(formula, data, method = "SOPLS",
   pval <- if (is.na(tstat)) NA_real_ else stats::pt(tstat, df = nsplit - 1)
   structure(list(statistic = c(t = tstat), parameter = c(df = nsplit - 1), p.value = pval,
                  delta = delta, mean_delta = mean(delta), se = se,
-                 correction = correction, method = method_name, resampling = resampling,
+                 correction = correction, method = method_name, resampling = resampling, reduce = reduce,
                  n_train = n_tr, n_test = n_te, nsplit = nsplit, nrot = nrot,
                  T_obs = mean(vapply(per_split, `[[`, 0, "T_obs")),
                  T_null = mean(vapply(per_split, `[[`, 0, "T_null")),

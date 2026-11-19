@@ -29,6 +29,18 @@
 #'   `R/resid_learners.R`. New methods can be made available by name by adding them
 #'   to `.resid_methods` in that file.
 #'
+#' **Dimension reduction (`reduce`).** With many conditioning variables a tree
+#' learner may not find the few directions of Z that matter. `reduce = "pca"`
+#' replaces the Z blocks by their principal component scores (one block; fitted on
+#' all rows, which is allowed since PCA does not use X or Y) for the regression, the
+#' conditional permutation and the wGCM weights. `reduce = "pls"` (`"XGB"` and `"RF"`
+#' only) feeds the tree learner with the PLS scores of the linear step of each fold
+#' (fitted on the training rows, separately for X and Y) instead of Z itself; the
+#' linear step then removes the linear part as before. For `"PLS"` and `"ROSA"`,
+#' which already work on a few components, `reduce = "pls"` is ignored.
+#' A nonlinear effect of Z that is shared by X and Y and lies outside the retained
+#' directions is not removed, and the test then rejects also under the null.
+#'
 #' **Weighted GCM (`stat = "wgcm"`).** The multivariate weighted generalised
 #' covariance measure with fixed weights (mWGCM.fix; Scheidegger, Hoerrmann and
 #' Buehlmann 2022, JMLR 23, Appendix A.1). For every pair of a residual column of X
@@ -78,6 +90,12 @@
 #' @param scale scale the Z variables in the PLS / ROSA regression.
 #' @param linear_first (`"XGB"`, `"RF"`) remove the linear part of Z with PLS before
 #'   the tree learner (default `TRUE`); ignored for `"PLS"` and `"ROSA"`.
+#' @param reduce dimension reduction of Z before the regression: `"none"` (default),
+#'   `"pca"` or `"pls"` (see Details).
+#' @param reduce_ncomp number of scores: `"auto"` or a number. For `"pca"`, `"auto"`
+#'   keeps the components above the Marchenko-Pastur noise edge (see
+#'   [cci_test_gen()]); for `"pls"`, the number of components of the linear step
+#'   (chosen by CV with `ncomp = "auto"`).
 #' @param method_args named list of method-specific options. For `"XGB"`: `nrounds`
 #'   (number of boosting rounds, 1000) and `params` (list merged into
 #'   `max_depth = 3, eta = 0.1, tree_method = "hist",
@@ -104,6 +122,9 @@
 #'                  method_args = list(nrounds = 300))
 #' Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", linear_first = FALSE)  # RF alone
 #' Block.resid.test(Y ~ X | Z1 + Z2, data, stat = "wgcm")                # weighted GCM
+#' # many conditioning variables: RF on the PLS scores, or PLS on PCA scores
+#' Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", reduce = "pls")
+#' Block.resid.test(Y ~ X | Z1 + Z2, data, method = "PLS", reduce = "pca")
 #' }
 #' @export
 Block.resid.test <- function(formula, data, method = "PLS",
@@ -112,8 +133,10 @@ Block.resid.test <- function(formula, data, method = "PLS",
                              perm = c("conditional", "simple"),
                              B = 999, group_size = 10, nfolds = 10,
                              ncomp = "auto", max_ncomp = 10, scale = TRUE,
-                             linear_first = TRUE, k0 = 7, method_args = list(), seed = NA) {
+                             linear_first = TRUE, k0 = 7, method_args = list(), seed = NA,
+                             reduce = c("none", "pca", "pls"), reduce_ncomp = "auto") {
   stat  <- match.arg(stat)
+  reduce <- match.arg(reduce)
   resid <- match.arg(resid)
   perm  <- match.arg(perm)
   learner <- .get_learner(method, .resid_methods)
@@ -127,8 +150,15 @@ Block.resid.test <- function(formula, data, method = "PLS",
   n <- nrow(cc$X)
   if (nfolds < 2 || nfolds > n) stop("nfolds must be between 2 and the number of rows")
   folds <- sample(rep_len(seq_len(nfolds), n))   # shared by the X and the Y regression
+  if (reduce == "pls" && method_name %in% c("PLS", "ROSA")) reduce <- "none"
+  n_reduced <- NA_integer_
+  if (reduce == "pca") {                    # unsupervised: fitted on all rows
+    cc$V <- list(.reduce_pca(do.call(cbind, cc$V), seq_len(n), reduce_ncomp))
+    n_reduced <- ncol(cc$V[[1]])
+  }
   opts <- list(ncomp = ncomp, max_ncomp = max_ncomp, scale = scale, resid = resid,
-               linear_first = linear_first, args = method_args)
+               linear_first = linear_first, reduce = reduce, reduce_ncomp = reduce_ncomp,
+               args = method_args)
 
   rx <- learner(cc$X, cc$V, folds, opts)
   ry <- learner(cc$Y, cc$V, folds, opts)
@@ -138,6 +168,8 @@ Block.resid.test <- function(formula, data, method = "PLS",
 
   two_step <- linear_first && method_name %in% c("XGB", "RF")
   reg_label <- if (two_step) paste0("PLS + ", method_name) else method_name
+  if (reduce == "pca") reg_label <- paste0(reg_label, " on ", n_reduced, " PCA scores of Z")
+  if (reduce == "pls") reg_label <- paste0(reg_label, " on PLS scores of Z")
   structure(list(
     statistic   = stats::setNames(res$obs, toupper(stat)),
     p.value     = res$p,
@@ -149,6 +181,7 @@ Block.resid.test <- function(formula, data, method = "PLS",
     complexity  = c(X = rx$complexity, Y = ry$complexity),
     linear_ncomp = c(X = rx$lin_ncomp %||% NA_real_, Y = ry$lin_ncomp %||% NA_real_),
     linear_first = two_step,
+    reduce = reduce, n_reduced = n_reduced,
     perm_stats  = res$perms,
     n_stats = res$n_stats,
     B = B, nfolds = nfolds, resid = resid, perm = if (stat == "wgcm") NA else perm, stat = stat

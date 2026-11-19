@@ -7,7 +7,8 @@
 #   Zl      list of Z blocks (each n x p_k)
 #   folds   integer vector of length n: the cross-fitting fold of each row. The same
 #           folds are used for the X and the Y regression.
-#   opts    list(ncomp, max_ncomp, scale, resid, linear_first, args): `resid` is "cv" (residuals
+#   opts    list(ncomp, max_ncomp, scale, resid, linear_first, reduce, reduce_ncomp,
+#           args): `resid` is "cv" (residuals
 #           from predictions of held-out rows) or "fitted" (in-sample residuals);
 #           `args` is the user's `method_args`. A learner uses the fields it needs.
 # Returns list(res, complexity):
@@ -82,43 +83,67 @@
 # Linear step for XGB and RF: PLS regression of M on Z fitted on the training rows
 # `tr`. With ncomp = "auto" the number of components is chosen by 5-fold CV inside
 # the training rows (at most max_ncomp). Returns the fitted values on `tr`, the
-# predictions for `te` and the number of components.
-.pls_fit_predict <- function(M, Z, tr, te, opts) {
+# predictions for `te` and the number of components. With scores = TRUE also the
+# PLS scores of the rows `tr` (F_tr) and `te` (F_te): the first nc scores, or the
+# first opts$reduce_ncomp if that is a number (reduce = "pls").
+.pls_fit_predict <- function(M, Z, tr, te, opts, scores = FALSE) {
   auto <- identical(opts$ncomp, "auto")
-  k_max <- min(if (auto) opts$max_ncomp else opts$ncomp, ncol(Z), length(tr) - 2)
+  lim <- min(ncol(Z), length(tr) - 2)
+  k_max <- min(if (auto) opts$max_ncomp else opts$ncomp, lim)
+  k_sc <- if (scores && is.numeric(opts$reduce_ncomp)) min(as.integer(opts$reduce_ncomp), lim) else NA
+  k_fit <- max(k_max, k_sc, na.rm = TRUE)
   dtr <- data.frame(M = I(M[tr, , drop = FALSE]), Z = I(Z[tr, , drop = FALSE]))
   dte <- data.frame(Z = I(Z[te, , drop = FALSE]))
   cv_args <- if (auto) list(validation = "CV", segments = min(5, length(tr))) else list()
-  fit <- do.call(pls::plsr, c(list(M ~ Z, data = dtr, ncomp = k_max, scale = opts$scale), cv_args))
+  fit <- do.call(pls::plsr, c(list(M ~ Z, data = dtr, ncomp = k_fit, scale = opts$scale), cv_args))
   nc <- k_max
   if (auto) {
     cv <- pls::MSEP(fit, estimate = "CV", intercept = FALSE)$val   # [1, response, component]
-    nc <- as.integer(which.min(apply(cv[1, , , drop = FALSE], 3, sum)))
+    nc <- as.integer(which.min(apply(cv[1, , seq_len(k_max), drop = FALSE], 3, sum)))
   }
-  list(fit_tr  = matrix(stats::fitted(fit)[, , nc], length(tr)),
-       pred_te = matrix(stats::predict(fit, newdata = dte, ncomp = nc)[, , 1], length(te)),
-       nc = nc)
+  out <- list(fit_tr  = matrix(stats::fitted(fit)[, , nc], length(tr)),
+              pred_te = matrix(stats::predict(fit, newdata = dte, ncomp = nc)[, , 1], length(te)),
+              nc = nc)
+  if (scores) {
+    ks <- if (is.na(k_sc)) nc else k_sc
+    out$F_tr <- matrix(unclass(fit$scores)[, seq_len(ks)], length(tr), ks)
+    out$F_te <- matrix(unclass(stats::predict(fit, newdata = dte, comps = seq_len(ks),
+                                              type = "scores")), length(te), ks)
+  }
+  out
 }
 
 # Cross-fitted predictions of M from Z with a nonlinear learner, optionally after a
-# linear PLS step (opts$linear_first). `nl_fit(Tm, tr, te)` trains the nonlinear
+# linear PLS step (opts$linear_first). `nl_fit(Tm, tr, te, Fm)` trains the nonlinear
 # learner on the rows `tr` of the target Tm and returns predictions for the rows
-# `te` (original scale of Tm). With the linear step, in each fold:
+# `te` (original scale of Tm); its inputs are the columns of Fm, or of Z when Fm is
+# NULL. With the linear step, in each fold:
 #   1. PLS of M on Z on the training rows; 2. the nonlinear learner on the training
 #   residuals of that fit; 3. prediction of the held-out rows = PLS prediction +
 #   nonlinear prediction.
+# With opts$reduce = "pls" the nonlinear learner gets the PLS scores of that fold's
+# PLS fit (a few supervised directions of Z) instead of Z itself; the PLS fit is
+# then made also when linear_first = FALSE (its prediction is not used).
 # resid = "cv": every fold is predicted by models trained on the other folds.
 # resid = "fitted": one fit on all rows, in-sample predictions.
 # Returns the predictions (n x q) and the mean number of PLS components.
 .two_stage <- function(M, Z, folds, opts, nl_fit) {
   n <- nrow(M); q <- ncol(M)
   lin <- isTRUE(opts$linear_first)
+  use_sc <- identical(opts$reduce, "pls")
   fit_rows <- function(tr, te) {
-    if (!lin) return(list(pred = nl_fit(M, tr, te), nc = NA_real_))
-    l <- .pls_fit_predict(M, Z, tr, te, opts)
+    if (!lin && !use_sc) return(list(pred = nl_fit(M, tr, te, NULL), nc = NA_real_))
+    l <- .pls_fit_predict(M, Z, tr, te, opts, scores = use_sc)
+    Fm <- NULL
+    if (use_sc) {                                      # features for the tree learner
+      Fm <- matrix(NA_real_, n, ncol(l$F_tr))
+      Fm[te, ] <- l$F_te
+      Fm[tr, ] <- l$F_tr
+    }
+    if (!lin) return(list(pred = nl_fit(M, tr, te, Fm), nc = l$nc))
     R <- M
     R[tr, ] <- M[tr, , drop = FALSE] - l$fit_tr       # training residuals of the linear fit
-    list(pred = l$pred_te + nl_fit(R, tr, te), nc = l$nc)
+    list(pred = l$pred_te + nl_fit(R, tr, te, Fm), nc = l$nc)
   }
   pred <- matrix(NA_real_, n, q)
   if (opts$resid == "fitted") {
@@ -154,10 +179,11 @@
     list(objective = "reg:squarederror", tree_method = "hist", multi_strategy = "multi_output_tree",
          max_depth = 3, eta = 0.1, nthread = 1),
     la$params)
-  nl_fit <- function(Tm, tr, te) .std_predict(Tm, tr, te, function(Ts) {
-    dtr <- xgboost::xgb.DMatrix(Z[tr, , drop = FALSE], label = Ts[tr, , drop = FALSE])
+  nl_fit <- function(Tm, tr, te, Fm) .std_predict(Tm, tr, te, function(Ts) {
+    Xf <- Fm %||% Z
+    dtr <- xgboost::xgb.DMatrix(Xf[tr, , drop = FALSE], label = Ts[tr, , drop = FALSE])
     fit <- xgboost::xgb.train(params = prm, data = dtr, nrounds = la$nrounds, verbose = 0)
-    matrix(stats::predict(fit, Z[te, , drop = FALSE]), length(te), q)
+    matrix(stats::predict(fit, Xf[te, , drop = FALSE]), length(te), q)
   })
   r <- .two_stage(M, Z, folds, opts, nl_fit)
   list(res = M - r$pred, complexity = la$nrounds, lin_ncomp = r$lin_ncomp)
@@ -182,18 +208,21 @@
   oob <- args$oob %||% TRUE
   args$oob <- NULL
   la <- utils::modifyList(list(num.trees = 2000, num.threads = 1), args)
-  grow <- function(rows, Ts, oob_pred = FALSE)
+  grow <- function(rows, Ts, oob_pred = FALSE, Xf = Z)
     do.call(grf::multi_regression_forest,
-            c(list(X = Z[rows, , drop = FALSE], Y = Ts[rows, , drop = FALSE],
+            c(list(X = Xf[rows, , drop = FALSE], Y = Ts[rows, , drop = FALSE],
                    compute.oob.predictions = oob_pred), la))
-  if (opts$resid == "cv" && oob && !isTRUE(opts$linear_first)) {
+  if (opts$resid == "cv" && oob && !isTRUE(opts$linear_first) && !identical(opts$reduce, "pls")) {
     all_rows <- seq_len(n)
     pred <- .std_predict(M, all_rows, all_rows, function(Ts)
       matrix(stats::predict(grow(all_rows, Ts, oob_pred = TRUE))$predictions, n, q))
     return(list(res = M - pred, complexity = la$num.trees, lin_ncomp = NA_real_))
   }
-  nl_fit <- function(Tm, tr, te) .std_predict(Tm, tr, te, function(Ts)
-    matrix(stats::predict(grow(tr, Ts), newdata = Z[te, , drop = FALSE])$predictions, length(te), q))
+  nl_fit <- function(Tm, tr, te, Fm) .std_predict(Tm, tr, te, function(Ts) {
+    Xf <- Fm %||% Z
+    matrix(stats::predict(grow(tr, Ts, Xf = Xf), newdata = Xf[te, , drop = FALSE])$predictions,
+           length(te), q)
+  })
   r <- .two_stage(M, Z, folds, opts, nl_fit)
   list(res = M - r$pred, complexity = la$num.trees, lin_ncomp = r$lin_ncomp)
 }

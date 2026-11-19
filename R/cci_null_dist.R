@@ -18,7 +18,9 @@ cci_null_dist <- function(formula, data, method = "SOPLS", nperm = 160,
                           resampling = c("rotation", "permutation", "conditional"),
                           p = 0.75, ncomp = "auto", scale = TRUE, max_ncomp = NULL,
                           cv_segments = 5, method_args = list(), group_size = 10,
-                          progress = FALSE) {
+                          progress = FALSE, reduce = c("none", "pca", "pls"),
+                          reduce_ncomp = "auto") {
+  reduce <- match.arg(reduce)
   learner <- .get_learner(method)
   resampling <- match.arg(resampling)
   if (progress) pb <- txtProgressBar(0, nperm, style = 3)
@@ -31,7 +33,8 @@ cci_null_dist <- function(formula, data, method = "SOPLS", nperm = 160,
     dat$X <- resample()
     T0[r] <- cci_test_gen(cc$formula, dat, method = learner, p = p, ncomp = ncomp,
                           scale = scale, max_ncomp = max_ncomp, cv_segments = cv_segments,
-                          method_args = method_args)[["T"]]
+                          method_args = method_args, reduce = reduce,
+                          reduce_ncomp = reduce_ncomp)[["T"]]
     if (progress) setTxtProgressBar(pb, r)
   }
   if (progress) close(pb)

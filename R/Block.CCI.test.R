@@ -16,12 +16,12 @@
 #'   (`pvalue = "parametric"`).
 #'
 #' The regression behind M0 (Y ~ V) and M1 (Y ~ V + X) is chosen with `method`:
-#'
-#' * `"SOPLS"` (default): sequential and orthogonalised PLS (`multiblock::sopls`);
+#' 
+#'* `"PLS"`(default): ordinary PLS (`pls::plsr`) on the `cbind`-ed blocks; the number of
+#'   components of each model is chosen by inner CV.
+#' * `"SOPLS"` : sequential and orthogonalised PLS (`multiblock::sopls`);
 #'   each V block is a separate block. With `ncomp = "auto"` each V block gets one
 #'   component and the number of X components is chosen by inner CV.
-#' * `"PLS"`: ordinary PLS (`pls::plsr`) on the `cbind`-ed blocks; the number of
-#'   components of each model is chosen by inner CV.
 #' * `"ROSA"`: response-oriented sequential alternation (`multiblock::rosa`); every
 #'   block is kept separate and each component comes from the block that best
 #'   explains the current Y residual. Components chosen by inner CV.
@@ -29,6 +29,11 @@
 #' * `"RF"`: multi-output random forest (`grf::multi_regression_forest`; needs grf).
 #' * a learner function with the interface described in `R/learners.R`. New methods
 #'   can be made available by name by adding them to `.cci_methods` in that file.
+#'
+#' With many conditioning variables, `reduce = "pca"` or `"pls"` replaces the V blocks
+#' by a few scores before the regression (fitted on the training rows of every split),
+#' so that a nonlinear learner works on a low-dimensional input; see [cci_test_gen()].
+#' The resampling of X still adjusts for the full V.
 #'
 #' All tuning (components, ...) uses the training rows only, identically for the
 #' observed and the resampled X. See [cci_test_gen()] for the details of each
@@ -56,13 +61,15 @@
 #'                method_args = list(nrounds = 300, params = list(max_depth = 4)))
 #' }
 #' @export
-Block.CCI.test <- function(formula, data, method = "SOPLS",
+Block.CCI.test <- function(formula, data, method = "PLS",
                            resampling = c("rotation", "permutation", "conditional"),
                            nperm = 160, p = 0.75, ncomp = "auto", scale = TRUE,
                            max_ncomp = NULL, cv_segments = 5, method_args = list(),
                            pvalue = c("empirical", "parametric"),
-                           group_size = 10, seed = NA, progress = TRUE) {
+                           group_size = 10, seed = NA, progress = TRUE,
+                           reduce = c("none", "pca", "pls"), reduce_ncomp = "auto") {
   resampling <- match.arg(resampling)
+  reduce <- match.arg(reduce)
   pvalue <- match.arg(pvalue)
   learner <- .get_learner(method)
   method_name <- .method_name(method)
@@ -71,11 +78,12 @@ Block.CCI.test <- function(formula, data, method = "SOPLS",
   # for the observed statistic and the null draws (both use .canonical())
   obs <- cci_test_gen(formula, data, method = learner, p = p, ncomp = ncomp, scale = scale,
                       max_ncomp = max_ncomp, cv_segments = cv_segments,
-                      method_args = method_args)
+                      method_args = method_args, reduce = reduce, reduce_ncomp = reduce_ncomp)
   T0 <- cci_null_dist(formula, data, method = learner, nperm = nperm, resampling = resampling,
                       p = p, ncomp = ncomp, scale = scale, max_ncomp = max_ncomp,
                       cv_segments = cv_segments, method_args = method_args,
-                      group_size = group_size, progress = progress)
+                      group_size = group_size, progress = progress,
+                      reduce = reduce, reduce_ncomp = reduce_ncomp)
   # RMSEP is a loss: small T = evidence against H0 (left tail)
   p_emp <- (sum(T0 <= obs[["T"]]) + 1) / (nperm + 1)
   p_par <- .parametric_p(obs[["T"]], T0)
@@ -83,7 +91,7 @@ Block.CCI.test <- function(formula, data, method = "SOPLS",
   structure(list(statistic = c(T = obs[["T"]]), p.value = pval, M0 = obs[["M0"]], M1 = obs[["M1"]],
                  pvalue = pvalue, p.empirical = p_emp, p.parametric = p_par,
                  null.distribution = T0, method = method_name, resampling = resampling,
-                 nperm = nperm, ncomp = ncomp, method_args = method_args,
+                 nperm = nperm, ncomp = ncomp, method_args = method_args, reduce = reduce,
                  complexity = c(M0 = obs[["a"]], M1 = obs[["b"]]), p = p,
                  formula = formula, tail = "left"),
             class = c("BlockCCI", "htest"))
@@ -94,7 +102,8 @@ Block.CCI.test <- function(formula, data, method = "SOPLS",
 #' @rdname Block.CCI.test
 #' @export
 print.BlockCCI <- function(x, ...) {
-  cat("Block CCI test | method:", x$method, "| resampling:", x$resampling, "| R =", x$nperm, "\n")
+  red <- if (!is.null(x$reduce) && x$reduce != "none") paste("| V reduced by", toupper(x$reduce)) else ""
+  cat("Block CCI test | method:", x$method, "| resampling:", x$resampling, "| R =", x$nperm, red, "\n")
   cat("Formula:", paste(deparse(x$formula), collapse = ""), "\n")
   unit <- switch(x$method,
                  SOPLS = "V components, added X components",

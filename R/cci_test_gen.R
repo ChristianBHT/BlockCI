@@ -70,6 +70,18 @@
 #'   receives the list as `opts$args`.
 #' @param split training rows (optional; if `NULL` a random split of `floor(p * n)`
 #'   rows is drawn). [Block.CCI.fast()] uses it to fit X and X* on the same split.
+#' @param reduce dimension reduction of the conditioning blocks before the
+#'   regression: `"none"` (default), `"pca"` (principal component scores of all V
+#'   blocks together, standardised) or `"pls"` (scores of a PLS regression of Y on V).
+#'   The reduction is fitted on the training rows only, and the V blocks are replaced
+#'   by one block of scores for both M0 and M1 (X is not reduced). Useful when V has
+#'   many columns and a nonlinear learner ("RF", "XGB") has to learn functions of a few
+#'   directions of V.
+#' @param reduce_ncomp number of scores: `"auto"` or a number. For `"pca"`, `"auto"`
+#'   keeps the components whose eigenvalue (correlation matrix of V) exceeds the
+#'   Marchenko-Pastur noise edge `(1 + sqrt(p/n))^2` (at most 20; if none does, the
+#'   components explaining 90 % of the variance); for `"pls"` the number is chosen by
+#'   cross-validation on the training rows (at most 10).
 #' @param losses if `TRUE`, return per-test-row squared errors as well
 #' @param yh0 (advanced) test-row predictions of M0 (Y ~ V) from an earlier call
 #'   with the same `data` (apart from X), `split` and settings, as returned with
@@ -87,8 +99,9 @@
 cci_test_gen <- function(formula, data, method = "SOPLS", p = 0.75, ncomp = "auto",
                          scale = TRUE, max_ncomp = NULL, cv_segments = 5,
                          method_args = list(), split = NULL, losses = FALSE,
-                         yh0 = NULL) {
+                         yh0 = NULL, reduce = c("none", "pca", "pls"), reduce_ncomp = "auto") {
   learner <- .get_learner(method)
+  reduce <- match.arg(reduce)
   cc <- .canonical(formula, data)
   Y <- cc$Y; X <- cc$X; V <- cc$V
   n <- nrow(Y)
@@ -100,6 +113,9 @@ cci_test_gen <- function(formula, data, method = "SOPLS", p = 0.75, ncomp = "aut
   sdv <- if (scale) apply(Y[train, , drop = FALSE], 2, stats::sd) else rep(1, ncol(Y))
   sdv[sdv == 0] <- 1
   Ys <- sweep(sweep(Y, 2, mu), 2, sdv, "/")
+
+  # optional dimension reduction of V (fitted on the training rows)
+  V <- .reduce_blocks(V, Ys, train, reduce, reduce_ncomp)
 
   opts <- list(ncomp = ncomp, scale = scale, max_ncomp = max_ncomp,
                cv_segments = cv_segments, args = method_args, fit_m0 = is.null(yh0))

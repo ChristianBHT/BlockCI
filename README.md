@@ -204,6 +204,32 @@ Block.resid.test(Y ~ X | Z1 + Z2, data, stat = "wgcm")
 Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", stat = "wgcm", k0 = 3)
 ```
 
+### Many conditioning variables (`reduce`)
+
+When Z has many columns but X and Y depend on only a few directions of it, both tests
+can first reduce Z:
+
+* `reduce = "pca"`: Z is replaced by its principal component scores. With
+  `reduce_ncomp = "auto"` the components above the Marchenko-Pastur noise edge
+  `(1 + sqrt(p/n))^2` are kept, i.e. the factors that stand out from noise.
+* `reduce = "pls"`: in `Block.CCI.test()` / `Block.CCI.fast()` the V blocks are replaced
+  by the scores of a PLS regression of Y on V; in `Block.resid.test()` the tree learner
+  (`"RF"`, `"XGB"`) gets the PLS scores of its linear step instead of raw Z.
+
+The reductions are fitted on the training rows (PCA in the residual test on all rows,
+since it does not use X or Y). The resampling of X in the CCI test still uses the full V.
+
+```r
+Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", reduce = "pls")
+Block.resid.test(Y ~ X | Z1 + Z2, data, method = "PLS", reduce = "pca")
+Block.CCI.test(Y ~ X | Z1 + Z2, data, method = "RF", reduce = "pca", nperm = 99)
+```
+
+A reduction cannot help when X and Y share a nonlinear function of Z that the retained
+directions do not capture, or that cannot be learned from the available rows: then
+every residual- or prediction-based test rejects too often (Shah and Peters 2020). The
+nonlinear high-dimensional design of the simulation study is kept as such a limit case.
+
 A new regression is a *residual learner* `function(M, Zl, folds, opts)` returning
 `list(res, complexity)`; it can be passed directly as `method` or added by name to
 `.resid_methods` in `R/resid_learners.R`.

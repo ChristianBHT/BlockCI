@@ -72,3 +72,25 @@ test_that("Block.resid.test with stat = 'wgcm' rejects a false null and runs und
   expect_true(r0$p.value > 0 && r0$p.value <= 1)
   expect_equal(r0$n_stats, 2 * 2 * (3 * 4 + 1))
 })
+
+test_that("Block.resid.test runs with the cc1 and dcor statistics", {
+  set.seed(12)
+  d <- sim_1(n = 200, p = 2)
+  r <- Block.resid.test(Y ~ X | Z1, d, stat = "cc1", B = 99, seed = 1)   # Z2 missing: H0 false
+  expect_equal(r$stat, "cc1")
+  expect_lt(r$p.value, 0.05)
+  skip_if_not_installed("energy")
+  r <- Block.resid.test(Y ~ X | Z1 + Z2, d, stat = "dcor", B = 19, seed = 1)
+  expect_true(r$p.value > 0 && r$p.value <= 1)
+})
+
+test_that("Block.resid.test: permutation statistics, print method and argument checks", {
+  set.seed(13)
+  d <- sim_1(n = 150, p = 2)
+  r <- Block.resid.test(Y ~ X | Z1 + Z2, d, B = 49, seed = 1)
+  expect_length(r$perm_stats, 49)
+  expect_true(r$p.value > 0 && r$p.value <= 1)
+  expect_output(print(r), "Block residual test")
+  expect_error(Block.resid.test(Y ~ X, d), "conditioning set")
+  expect_error(Block.resid.test(Y ~ X | Z1, d, nfolds = 1), "nfolds")
+})
