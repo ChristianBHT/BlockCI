@@ -1,5 +1,5 @@
 # Block.CCI.test, cci_test_gen, cci_null_dist and Block.CCI.fast
-
+library(testthat)
 # OLS learner with the CCI learner interface (for the custom-method test)
 ols_learner <- function(Ys, X, Vl, train, test, opts) {
   fitp <- function(F) {
@@ -155,3 +155,4 @@ test_that("Block.CCI.fast: Nadeau-Bengio correction widens the se; false null is
   expect_output(print(r), "p-value")
   expect_error(Block.CCI.fast(Y ~ X | Z1, d, method = "PLS", nsplit = 1, progress = FALSE), "nsplit")
 })
+

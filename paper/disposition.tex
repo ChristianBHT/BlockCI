@@ -14,6 +14,7 @@
 
 \usepackage{amssymb,amsthm,amsmath}
 \usepackage{xcolor,paralist,hyperref,titlesec,fancyhdr,etoolbox}
+\usepackage{booktabs,float}
 \newtheorem{theorem}{Theorem}[]
 \newtheorem{definition}[theorem]{Definition}
 \newtheorem{example}[theorem]{Example}
@@ -35,6 +36,9 @@
 \newcommand{\todo}[1]{{\color{red}[TODO: #1]}}
 \newcommand{\ci}{\perp\!\!\!\perp}          % conditional independence symbol
 \newcommand{\nci}{\not\!\perp\!\!\!\perp}
+\newcommand{\hi}[1]{\textbf{#1}}            % type I error more than 2 MC s.e. above 0.05
+\newcommand{\fn}[1]{\texttt{#1}}            % function names
+\emergencystretch=3em
 
 \begin{document}
 \title{Causal Discovery Between Blocks} %%%%%%%%%%%%
@@ -51,10 +55,15 @@
 \emph{Draft.} Causal discovery methods such as the PC algorithm operate on single
 variables, whereas many data sets in chemometrics, sensory science and the
 omics fields come as \emph{blocks}: matrices of many variables measured on the
-same objects. We define graphical models whose nodes are blocks, propose a test of
-conditional independence between blocks based on sequential orthogonal PLS
-(SO-PLS) with a resampling-based null distribution, and use it inside the PC
-algorithm to recover the causal structure between blocks. In simulations the test
+same objects. We define graphical models whose nodes are blocks and formulate two
+families of tests of conditional independence between blocks: \emph{prediction-based}
+tests, which compare out-of-sample prediction of a block with and without another
+block and calibrate the comparison by resampling (a block version of computational
+conditional independence, CCI), and \emph{residual-based} tests, which remove the
+conditioning blocks by cross-fitted regression and test the dependence of the
+residual matrices. Both families accept several regression methods (PLS, SO-PLS,
+ROSA, random forests, XGBoost). We use (some of) these tests inside the PC
+algorithm to recover the causal structure between blocks. In simulations the tests
 \todo{state final type I error / power numbers} and the resulting block-level PC
 algorithm \todo{state final SHD / recall numbers}. We illustrate the method on
 \todo{real data sets}.
@@ -69,6 +78,9 @@ $\,$
 $\,$
 % =============================================================================
 \section{Introduction}
+Path analysis and causal analysis are used interchangebly and refer to . Strucutural equation modeling (SEM) is a modeling framework for combining factor analysis with linear multivariate regression, where factor analysis is used to extract latent variables from a block of data, which again . SEM has several limitations, most importantly it is dependent on a apriori theoretical specification. Secondly, SEM can only estimate linear relationsships, and will fail in cases where relationsships inside a block of data or between blocks are non-linear.    
+
+This paper address several gaps in the literature. It proposes and tests several conditional independence testing method between blocks of data, tests that can handle non-linear high dimensional blocks of data.  
 \begin{itemize}
 \item \textbf{Motivation.} Multiblock data: several matrices on the same objects
   (spectra, sensory profiles, process settings, consumer data, omics). Questions
@@ -76,16 +88,25 @@ $\,$
 \item \textbf{Background.} Constraint-based causal discovery (PC, FCI; Spirtes and
   Glymour 1991; Spirtes, Glymour and Scheines 2000) and its reliance on
   conditional independence (CI) tests of single variables. Existing multivariate CI
-  tests (kernel, distance-based, CCI) and their limits (Shah and Peters 2020).
+  tests (kernel, distance-based, GCM and weighted GCM, CCI) and their limits
+  (Shah and Peters 2020). Causal discovery on groups of variables (Wahl, Ninad and
+  Runge): PC on all micro-variables is costly and unstable, aggregation can give
+  wrong CI conclusions. SO-PLS path modelling in chemometrics (N\ae s et al.\ 2011,
+  2021; Romano et al.\ 2019) takes the block order and graph largely as given.
 \item \textbf{Gap.} (i) No graphical model with blocks as nodes; (ii) no CI test
   between blocks that is fast, handles collinear high-dimensional blocks, and
   respects multiblock structure; (iii) no PC-type algorithm built on such a test.
 \item \textbf{Contributions.} (1) Block graphical models (Section 2).
-  (2) SO-PLS-based CI test, with fast and residual-based variants (Section 3).
-  (3) Study of the effect of block order (Section 5).
-  (4) Block-level PC algorithm (Section 6).
-  (5) Simulation and real-data evidence (Sections 4, 7, 8).
-  (6) Open-source R package (\texttt{CausalBlocks}/\texttt{BlockCI}).
+  (2) Block-based CI tests: a prediction-based (CCI) test with a choice of
+  regression method, a fast version, and residual-based tests with RV and weighted
+  GCM statistics (Section 3).
+  (3) A simulation study of validity and power under different noise, dimension
+  and nonlinearity (Section 4).
+  (4) Study of the effect of block order (Section 5).
+  (5) Block-level PC algorithm (Section 6) with simulation and real-data evidence
+  (Sections 7, 8).
+  (6) Open-source R package (\texttt{CausalBlocks}/\texttt{BlockCI}) (a separate
+  SoftwareX article).
 \item \textbf{Two settings.} (A) same samples, different variables (the focus);
   (B) same variables, different samples/environments (invariant prediction;
   brief remarks only).
@@ -125,72 +146,292 @@ $\,$
 \end{itemize}
 
 % =============================================================================
-\section{Conditional Independence Test between Blocks of Data}
+\section{Conditional Independence Tests between Blocks of Data}
+
+\subsection*{3.1 Problem}
 \begin{itemize}
-\item \textbf{Problem.} Test $Y\ci X\mid V$ with $V=(V_1,\dots,V_k)$ blocks.
-\item \textbf{SO-PLS recap.} Sequential and orthogonalised PLS; order of blocks;
-  number of components per block.
-\item \textbf{Test statistic.} $T=\mathrm{RMSEP}(Y\sim V+X)-\mathrm{RMSEP}(Y\sim V)$ on
-  held-out data (Monte Carlo cross-validation), $M_0$ and $M_1$ from one SO-PLS fit.
-\item \textbf{Null distribution.} Resampling $X^*$ with the same MCCV splits:
+\item Test $H_0: Y\ci X\mid V$ with $V=(V_1,\dots,V_k)$ blocks, $Y\in\mathbb{R}^{n\times q}$,
+  $X\in\mathbb{R}^{n\times p}$. Two families of tests: prediction-based (3.2--3.3)
+  and residual-based (3.4).
+\end{itemize}
+
+\subsection*{3.2 Prediction-based test (block CCI)}
+\begin{itemize}
+\item \textbf{Statistic.} One Monte Carlo cross-validation (MCCV) split into training
+  and test rows; $M_0$: $Y\sim V$, $M_1$: $Y\sim V+X$ fitted on the training rows;
+  $T=\mathrm{RMSEP}(M_1)-\mathrm{RMSEP}(M_0)$ on the test rows ($Y$ standardised with
+  training statistics). Negative $T$: $X$ improves prediction beyond $V$.
+\item \textbf{Regression methods (learners).} All tuning on training rows only,
+  identical for observed and resampled $X$:
   \begin{itemize}
-  \item rotation of $X$ after linear adjustment for $V$ (Langs{\o}d-style rotation
-    tests),
-  \item global permutation,
-  \item conditional permutation within groups of similar $V$.
+  \item \emph{SO-PLS}: one fit gives $M_0$ (components of $V_1,\dots,V_k$) and $M_1$
+    (added components of $X$, on the $V$-orthogonalised $Y$ and $X$); default one
+    component per $V$ block and the number of $X$ components by inner CV.
+  \item \emph{PLS}: PLS on $\mathrm{cbind}(V)$ and on $\mathrm{cbind}(V,X)$, components by
+    inner CV.
+  \item \emph{ROSA}: response-oriented sequential alternation (Liland et al.\ 2016);
+    every block kept separate, each component taken from the block that best
+    explains the current $Y$ residual; order-free.
+  \item \emph{Random forest}: multi-output regression forest (\fn{grf}; Athey,
+    Tibshirani and Wager 2019), splits reduce the error summed over the columns of
+    $Y$.
+  \item \emph{XGBoost}: multi-target boosted trees (Chen and Guestrin 2016),
+    fixed number of rounds; experimental.
+  \item General learner interface: any regression that returns test-row
+    predictions of $M_0$ and $M_1$ can be plugged in.
   \end{itemize}
-  Empirical and parametric (normal) p-value; ties and conservativeness when
-  $b=0$ (\todo{randomised tie-breaking}).
-\item \textbf{Choice of components.} Inner CV (auto) vs.\ one component per
-  block vs.\ fixed; consequences for validity (Section 4).
-\item \textbf{Alternative learners.} Multi-target XGBoost for nonlinear $V$ effects.
-\item \textbf{Fast version.} Paired comparison of SO-PLS on real $X$ and on $X^*$
-  over $K$ splits, resampled t-test; with and without Nadeau--Bengio correction.
-\item \textbf{Residual-based tests.} Remove $V$ from $X$ and $Y$ with PLS or ROSA
-  (cross-validated residuals), test dependence of residuals with RV, first canonical
-  correlation or distance correlation, by (conditional) permutation.
-\item \textbf{Theory.} Validity under linear Gaussian models; why it fails under
-  nonlinear $V\to X, Y$; computational complexity.
-  \todo{Proposition on exactness of the rotation test; discuss the residual-based
-  tests under the same model.}
-\item \textbf{Software.} \texttt{SOPLS.CCI.test}, \texttt{SOPLS.CCI.fast},
-  \texttt{pls\_ci\_test}, \texttt{rosa\_ci\_test}.
+\item \textbf{Null distribution.} $R$ repetitions of the procedure on a resampled
+  $X^*$ (new split each time):
+  \begin{itemize}
+  \item rotation of $X$ after linear adjustment for $V$ (Langsrud 2005): keeps the
+    linear $X$--$V$ relation and the residual covariance $E'E$ exactly;
+  \item global permutation;
+  \item conditional permutation within clusters of similar $V$.
+  \end{itemize}
+  Left-tail p-value, empirical ($(\#\{T^*\le T\}+1)/(R+1)$) or parametric (normal
+  fit to $T^*$). Ties and conservativeness when SO-PLS selects $b=0$
+  (\todo{randomised tie-breaking}).
+\end{itemize}
+
+\subsection*{3.3 Fast prediction-based test}
+\begin{itemize}
+\item Same split for $X$ and $X^*$; $M_0$ fitted once per split and reused, only $M_1$
+  refitted for $X^*$. Split statistic $\delta_k$ = mean over test rows of
+  $l_1(X)-l_1(X^*)$ (squared-error loss); $K$ splits combined by a $t$-statistic,
+  without or with the Nadeau--Bengio correction.
+\item Trade-off: no correction is slightly liberal (0.05--0.08 in early runs),
+  Nadeau--Bengio is valid but has low power.
+\end{itemize}
+
+\subsection*{3.4 Residual-based tests}
+\begin{itemize}
+\item \textbf{Cross-fitted residuals.} The rows are split into $K$ folds, shared by
+  the $X$ and the $Y$ regression; each fold is predicted by a model trained on the
+  other folds: $\hat\varepsilon=X-\hat f(V)$, $\hat\xi=Y-\hat g(V)$.
+\item \textbf{Regression methods.} PLS and ROSA (components by CV over the same
+  folds); \emph{PLS followed by a tree learner} (random forest or XGBoost on the
+  training residuals of PLS, prediction = PLS + tree prediction). The linear step
+  is needed: tree ensembles approximate linear effects poorly (piecewise constant,
+  shrunk towards the mean), so a shrunken copy of the linear $V$-effect remains in
+  \emph{both} residual matrices and makes them dependent under $H_0$ (observed:
+  a forest alone rejected a true linear null in every run).
+\item \textbf{Statistics.}
+  \begin{itemize}
+  \item RV coefficient, first canonical correlation, distance correlation; null by
+    simple or conditional permutation of residual rows.
+  \item Weighted generalised covariance measure, multivariate version with fixed
+    weights (mWGCM.fix; Scheidegger, H\"orrmann and B\"uhlmann 2022):
+    $T_{jlk}=\sqrt{n}\,\overline{R}_{jlk}/\widehat{\mathrm{sd}}(R_{jlk})$ with
+    $R_{jlk,i}=\hat\varepsilon_{ij}\hat\xi_{il}w_k(V_i)$, weights $1$ and
+    $\mathrm{sign}(V_d-a_{dk})$ at the $k/(k_0+1)$ quantiles; statistic
+    $\max|T_{jlk}|$; p-value from a Gaussian approximation
+    $\max|N(0,\hat\Sigma)|$, simulated by Gaussian multipliers.
+  \end{itemize}
+\end{itemize}
+
+\subsection*{3.5 Theory}
+\begin{itemize}
+\item \textbf{Rotation null.} Exactness of the rotation test for linear learners
+  under the multivariate normal linear model. \todo{Proposition and proof.}
+\item \textbf{Rotation with nonlinear learners.} Rotation preserves only first and
+  second moments of $X$ given $V$ (linear fit and $E'E$); the rotated residuals look
+  Gaussian. A nonlinear learner can use higher moments of the real residuals
+  (skewness, heavy tails), so $T$ and $T^*$ are no longer exchangeable; the size
+  error grows with $n$ (Section 4). \todo{Formalise; candidate fix: permute the
+  residuals of $X$ given $V$ instead of rotating them.}
+\item \textbf{Residual tests.} Validity needs the product of the regression errors
+  of $X\mid V$ and $Y\mid V$ to be $o(n^{-1/2})$ (as for the GCM, Shah and Peters 2020);
+  permutation of RV additionally needs exchangeable residual rows, which fails when
+  the noise scale of $X$ and $Y$ depends on $V$ (shared heteroskedasticity); the
+  studentised weighted GCM does not need it.
+\item \textbf{Computational complexity} of each test.
+\end{itemize}
+
+\subsection*{3.6 Software}
+\begin{itemize}
+\item \fn{Block.CCI.test()}, \fn{Block.CCI.fast()} and \fn{Block.resid.test()}, called
+  as \fn{Block.CCI.test(Y \textasciitilde{} X | V1 + V2, data, method = "RF")}.
+\item Building blocks \fn{cci\_test\_gen()} and \fn{cci\_null\_dist()}.
+\item Methods \texttt{"SOPLS"}, \texttt{"PLS"}, \texttt{"ROSA"}, \texttt{"RF"},
+  \texttt{"XGB"} or a user-supplied learner function.
 \end{itemize}
 
 % =============================================================================
 \section{Simulation Study of the CI Tests}
+
+\subsection*{4.1 Design}
 \begin{itemize}
-\item \textbf{Aim.} Type I error, power and run time of every test in Section 3.
-\item \textbf{Design.}
+\item \textbf{Data.} In every design $X$ and $Y$ depend only on the observed blocks
+  $Z_1,Z_2$ plus their own noise, so $Y\ci X\mid Z_1,Z_2$ holds exactly; power by a
+  direct effect $Y\leftarrow Y+\beta X$.
   \begin{itemize}
-  \item Scenarios (each with $Y\ci X\mid Z_1,Z_2$ true): common causes, chain,
-    nearly collinear $X$, nonlinear/heteroskedastic/Laplace; plus the
-    latent-proxy design as a case where the null is \emph{false}.
-  \item Power: add a direct $X\to Y$ effect of increasing size, also a
-    conditioning set that omits a confounder (e.g.\ $Y\sim X\mid Z_1$).
-  \item Factors: $n\in\{200,500,1000,2000\}$, block dimensions, number of
-    conditioning blocks, number of resamples $R$.
-  \item Tests: SO-PLS MC (rotation/permutation/conditional), SO-PLS fast (with/without
-    correction), XGBoost learner, PLS and ROSA residual tests (simple/conditional
-    permutation, RV/cc1/dcor), and a baseline (e.g.\ Fisher-$z$ on canonical
-    scores, \texttt{CCI}).
-  \item Outcomes: rejection rate at $\alpha=0.05$ with Monte Carlo standard error,
-    p-value uniformity under $H_0$ (QQ plots), power curves, run time.
+  \item \emph{Linear}: $Z_1,Z_2$ with 4 columns each, $X,Y$ with 4 columns, linear in $Z$
+    (signal variance 2 per column, noise variance 1).
+  \item \emph{Nonlinear}: as linear plus squares, $\sin(2z)$, steps and pairwise
+    interactions of $Z$ (half of the signal variance), shared features with
+    separate coefficients for $X$ and $Y$.
+  \item \emph{High-dimensional}: $Z_1,Z_2$ with 100 columns each from a 3-factor
+    model; $X,Y$ (10 columns) depend linearly and nonlinearly on the factor
+    directions of the observed $Z$.
   \end{itemize}
-\item \textbf{Preliminary results} (linear $n=300$, 80 replications, $\alpha=0.05$):
-  \begin{itemize}
-  \item SO-PLS MC rotation: type I error 0.06; power 0.36/0.74 at effects 0.3/0.6.
-  \item SO-PLS MC permutation: type I error 0.90 with one component per $V$ block
-    (to be explained by the component rule); \todo{rerun with CV-chosen components}.
-  \item Fast SO-PLS: 0.05 without correction (power 0.58/0.61), 0.00 with
-    Nadeau--Bengio (power 0.23/0.48).
-  \item PLS/ROSA residual tests: 0.05--0.08, power 1.00 at both effects (effects
-    too large to separate the tests; \todo{use smaller effects}); 0.1--0.6 s per test.
-  \item Nonlinear scenario: all tests reject 0.68--1.00 of true nulls.
-  \end{itemize}
-\item \textbf{To do.} Smaller effects, $n$ grid, larger $R$, more replications,
-  multiple $V$ blocks, XGBoost and conditional resampling, nonlinear fix
-  (polynomial expansion of $V$).
+\item \textbf{Noise} on $X$ and $Y$ (unit variance): Gaussian, $t_3$, Laplace, skewed
+  (centred exponential), Poisson(1) counts, outliers (5\,\% from $N(0,5^2)$),
+  heteroskedastic (sd depends on $Z$), correlated columns (AR(1), $\rho=0.6$).
+\item \textbf{Factors.} $n\in\{200,500,1000\}$, $\beta\in\{0,0.5\}$ (first run:
+  $\{0,0.25\}$), 100 data sets per cell.
+\item \textbf{Tests.} CCI with PLS, SO-PLS, ROSA, RF ($R=99$, rotation, 500 trees);
+  residual tests with PLS (RV), PLS + RF (RV) and PLS + RF (weighted GCM, $k_0=3$),
+  $B=199$, 5 folds.
+\item \textbf{Outcomes.} Rejection rate at $\alpha=0.05$ with Monte Carlo standard
+  error ($\approx 0.022$ at 100 data sets), p-value uniformity (KS), run time.
+\end{itemize}
+
+\subsection*{4.2 Results so far}
+
+Bold entries are more than two Monte Carlo standard errors above the nominal 0.05
+(rate $\ge 0.10$ with 100 data sets). Linear design unless stated.
+
+\begin{table}[H]
+\caption{Type I error of the CCI tests (linear design, $H_0$ true, $\alpha=0.05$,
+100 data sets per cell).}
+\label{tab:cci-type1}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+Noise & $n$ & PLS & SO-PLS & ROSA & RF \\
+\midrule
+Gaussian & 200  & 0.05 & 0.00 & 0.06 & 0.04 \\
+         & 500  & 0.04 & 0.07 & 0.03 & 0.06 \\
+         & 1000 & 0.02 & 0.02 & 0.06 & 0.08 \\
+$t_3$    & 200  & 0.04 & 0.01 & 0.03 & 0.02 \\
+         & 500  & 0.06 & 0.07 & 0.02 & 0.07 \\
+         & 1000 & 0.04 & 0.05 & 0.02 & \hi{0.10} \\
+Laplace  & 200  & 0.03 & 0.04 & 0.03 & 0.08 \\
+         & 500  & 0.01 & 0.03 & 0.02 & 0.04 \\
+         & 1000 & 0.06 & 0.07 & 0.03 & 0.04 \\
+Skewed   & 200  & 0.04 & 0.05 & 0.03 & 0.05 \\
+         & 500  & 0.01 & 0.06 & 0.03 & \hi{0.11} \\
+         & 1000 & 0.07 & 0.04 & 0.08 & \hi{0.17} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\caption{Power of the CCI tests (linear design, $\beta=0.5$, 100 data sets per cell).}
+\label{tab:cci-power}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+Noise & $n$ & PLS & SO-PLS & ROSA & RF \\
+\midrule
+Gaussian & 200  & 1.00 & 0.37 & 0.94 & 0.46 \\
+         & 500  & 1.00 & 0.51 & 1.00 & 0.84 \\
+         & 1000 & 1.00 & 0.66 & 1.00 & 0.98 \\
+$t_3$    & 200  & 0.99 & 0.38 & 0.98 & 0.64 \\
+         & 500  & 1.00 & 0.48 & 1.00 & 0.85 \\
+         & 1000 & 1.00 & 0.60 & 1.00 & 0.94 \\
+Laplace  & 200  & 0.97 & 0.47 & 0.99 & 0.56 \\
+         & 500  & 1.00 & 0.57 & 1.00 & 0.83 \\
+         & 1000 & 1.00 & 0.64 & 1.00 & 0.99 \\
+Skewed   & 200  & 1.00 & 0.49 & 0.94 & 0.60 \\
+         & 500  & 1.00 & 0.54 & 1.00 & 0.90 \\
+         & 1000 &   &   &   & \\ 
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\caption{Type I error of the residual tests (linear design, $H_0$ true, $\alpha=0.05$,
+100 data sets per cell). RV with conditional permutation; wGCM = weighted GCM.}
+\label{tab:res-type1}
+\small
+\begin{tabular}{llrrr}
+\toprule
+Noise & $n$ & PLS (RV) & PLS + RF (RV) & PLS + RF (wGCM) \\
+\midrule
+Gaussian    & 200  & 0.09 & \hi{0.11} & 0.05 \\
+            & 500  & 0.09 & 0.06 & 0.05 \\
+            & 1000 & 0.02 & 0.02 & 0.07 \\
+$t_3$       & 200  & 0.09 & 0.03 & 0.02 \\
+            & 500  & 0.00 & 0.03 & 0.03 \\
+            & 1000 & 0.03 & 0.04 & 0.01 \\
+Laplace     & 200  & 0.07 & 0.06 & 0.01 \\
+            & 500  & \hi{0.10} & 0.08 & 0.07 \\
+            & 1000 & 0.06 & 0.07 & 0.04 \\
+Skewed      & 200  & 0.09 & \hi{0.12} & 0.04 \\
+            & 500  & 0.05 & 0.06 & 0.03 \\
+            & 1000 & 0.08 & \hi{0.10} & 0.05 \\
+Poisson     & 200  & 0.05 & 0.04 & 0.04 \\
+            & 500  & 0.08 & \hi{0.13} & 0.03 \\
+            & 1000 & 0.03 & 0.03 & 0.04 \\
+Outliers    & 200  & 0.08 & \hi{0.12} & 0.02 \\
+            & 500  & 0.06 & 0.06 & 0.01 \\
+            & 1000 & 0.08 & 0.08 & 0.05 \\
+Heterosk.   & 200  & \hi{0.42} & \hi{0.41} & 0.01 \\
+            & 500  & \hi{0.51} & \hi{0.53} & 0.02 \\
+            & 1000 & \hi{0.55} & \hi{0.56} & 0.03 \\
+Correlated  & 200  & 0.05 & 0.08 & 0.07 \\
+            & 500  & 0.05 & 0.06 & 0.03 \\
+            & 1000 & 0.06 & 0.05 & 0.08 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Power of the residual tests} ($\beta=0.5$, linear design): 1.00 in every cell
+for PLS (RV) and PLS + RF (RV); PLS + RF (wGCM) 1.00 except $n=200$ with outliers
+(0.90), $t_3$ (0.97) and heteroskedastic noise (0.98). The effect is too large to
+separate the residual tests. \todo{rerun power with $\beta\in\{0.1,0.2\}$.}
+
+
+\begin{table}[H]
+\caption{Median run time per test in seconds (linear design; RF uses all cores).}
+\label{tab:time}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Test & $n=200$ & $n=500$ & $n=1000$ \\
+\midrule
+CCI, PLS          & 1.1  & 1.7  & 2.7  \\
+CCI, SO-PLS       & 3.6  & 11.9 & 45.9 \\
+CCI, ROSA         & 5.1  & 6.7  & 12.0 \\
+CCI, RF           & 13.8 & 20.4 & 28.9 \\
+Residual, PLS (RV)        & $<0.1$ & 0.1 & 0.2 \\
+Residual, PLS + RF (RV)   & 0.8  & 1.1  & 1.7  \\
+Residual, PLS + RF (wGCM) & 0.8  & 1.0  & 1.6  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{4.3 Main findings so far}
+\begin{itemize}
+\item \textbf{CCI with linear learners} (PLS, SO-PLS, ROSA) holds the level in the
+  linear design for all noise types tested (0.00--0.08).
+\item \textbf{CCI with RF} holds the level at $n=200$ but becomes liberal as $n$
+  grows under non-Gaussian noise (skewed 0.11--0.17, $t_3$ 0.10 at $n=1000$),
+  consistent with rotation preserving only second moments (Section 3.5).
+\item \textbf{Residual tests with RV} are slightly liberal (up to 0.13) and break down
+  under heteroskedastic noise (0.41--0.56); the \textbf{weighted GCM} holds the level
+  in every linear cell (0.01--0.08), including heteroskedastic noise.
+\item \textbf{Power} ($\beta=0.5$): PLS and ROSA CCI close to 1; RF from about 0.5 at
+  $n=200$ to 0.94--0.99 at $n=1000$; SO-PLS low (0.37--0.66), likely because the
+  default uses one component per $V$ block.
+\item \textbf{Nonlinear design:} all tests liberal at $n=1000$ ($t_3$ noise); at
+  $n=200$ (Gaussian) the residual tests are close to the level, wGCM 0.05.
+\item \textbf{Cost:} residual tests are 10--100 times faster than the CCI tests.
+\end{itemize}
+
+\subsection*{4.4 To do}
+\begin{itemize}
+\item CCI tests for Poisson, outlier, heteroskedastic and correlated noise, and
+  skewed $n=1000$, $\beta=0.5$.
+\item Power curves with smaller effects ($\beta\in\{0.1,0.2,0.3\}$).
+\item Complete the nonlinear and high-dimensional designs with 100 data sets per cell.
+\item Residual permutation instead of rotation for CCI with nonlinear learners.
+\item SO-PLS with CV-chosen components per $V$ block.
+\item Competitors: weighted GCM package (\fn{weightedGCM}), GCM, KCI/RCIT,
+  variable-level PC.
+\item p-value distributions (QQ plots), parametric vs.\ empirical p-values,
+  sensitivity to $R$, number of trees and number of folds.
 \end{itemize}
 
 % =============================================================================
@@ -201,6 +442,8 @@ $\,$
 \item \textbf{In the CI test.} $V$ before $X$ is required for the statistic. Order
   \emph{among} the blocks $V_1,\dots,V_k$ changes the component allocation and
   hence the fit, but not the hypothesis.
+\item \textbf{ROSA as an order-free alternative}: components are chosen block by
+  block by response correlation, so no order has to be fixed.
 \item \textbf{Questions.}
   \begin{itemize}
   \item Does the order of $Z_1,Z_2$ change type I error or power?
@@ -222,19 +465,25 @@ $\,$
   \item Orient v-structures $B_i\to B_k\leftarrow B_j$ if $B_k\notin\mathrm{sepset}(i,j)$.
   \item Meek rules R1--R3 give a CPDAG over blocks.
   \end{itemize}
+\item \textbf{Choice of CI test inside PC.} Validity and cost from Section 4:
+  residual test with weighted GCM (fast, valid in linear designs including
+  heteroskedastic noise) as default for (near-)linear relations; CCI with RF for
+  nonlinear relations; CCI with PLS or ROSA when power matters and relations are
+  linear.
 \item \textbf{Block-specific issues.}
   \begin{itemize}
   \item Conditioning sets are sets of blocks; number of tests is small (few
-    nodes) but each test is costly $\Rightarrow$ choice between the fast and the
-    Monte Carlo test.
+    nodes) but each test is costly $\Rightarrow$ choice between the fast, Monte Carlo
+    and residual tests.
   \item Different block sizes $p_k$ and different signal strengths $\Rightarrow$
     unequal power across edges.
   \item Effect of test errors (dense skeleton when the test over-rejects, missing
     edges with low power) on orientation.
   \item Stable / conservative PC variants; choice of $\alpha$; multiple testing.
   \end{itemize}
-\item \textbf{Implementation.} Plug the block CI test into \texttt{pcalg::pc} through
-  a user-supplied \texttt{indepTest}, or into the package's own PC code.
+\item \textbf{Implementation.} Plug the block CI tests into \texttt{pcalg::pc} through
+  a user-supplied \texttt{indepTest}, or into the package's own PC code (replacing the
+  Fisher-$z$ test on first principal component scores in \fn{discover\_multiview()}).
 \item \textbf{Theory.} Soundness and completeness of PC with an oracle block CI test
   (follows from Section 2); consistency given a consistent test \todo{requirement
   on the test's size/power as $n\to\infty$}.
@@ -250,19 +499,19 @@ $\,$
   \begin{itemize}
   \item Random block DAGs ($K=4,6,8$ blocks, varying density and block sizes),
     data generated from latent factors per block and linear (then nonlinear)
-    block-to-block effects.
+    block-to-block effects; noise types as in Section 4.
   \item Factors: $n$, $\alpha$, signal strength, test used inside PC
-    (SO-PLS MC, fast, PLS/ROSA residual).
+    (CCI with PLS/ROSA/RF, fast CCI, residual tests with RV/wGCM).
   \item Competitors: variable-level PC on all columns, then collapse to blocks;
     PC on block summaries (first PC / canonical scores) with Fisher-$z$; the
-    baseline methods in \texttt{R/discover.R}.
+    baseline methods in \texttt{R/discover.R}; group-level approaches of Wahl et al.
   \end{itemize}
 \item \textbf{Metrics.} Skeleton precision and recall, orientation accuracy,
   structural Hamming distance (SHD) to the true CPDAG, run time.
 \item \textbf{Baseline already available} (setting A, $n=1000$, 30 seeds, Fisher-$z$ on the
   baseline method): precision 0.84, recall 0.74, SHD 1.13.
-\item \textbf{Robustness.} Nonlinearity, non-Gaussian noise, collinear blocks,
-  violated sufficiency.
+\item \textbf{Robustness.} Nonlinearity, non-Gaussian and heteroskedastic noise,
+  collinear blocks, violated sufficiency.
 \end{itemize}
 
 % =============================================================================
@@ -270,7 +519,8 @@ $\,$
 \begin{itemize}
 \item \todo{Select two or three multiblock data sets where domain knowledge gives
   at least a partial ground truth (e.g.\ sensory/instrumental/consumer data,
-  process-and-spectral data, omics layers).}
+  process-and-spectral data such as the Gouda cheese process data, a multiblock
+  version of the broiler production data, omics layers).}
 \item For each: data description, block definition, preprocessing, tests used,
   estimated block CPDAG, comparison with domain knowledge and with variable-level
   PC, sensitivity to $\alpha$ and to the test.
@@ -280,20 +530,24 @@ $\,$
 % =============================================================================
 \section{Conclusions}
 \begin{itemize}
-\item Summary of contributions and main findings (validity and power of the test,
+\item Summary of contributions and main findings (validity and power of the tests,
   usefulness for block-level discovery).
-\item \textbf{Limitations.} Nonlinear dependence; faithfulness and sufficiency;
-  tie-induced conservativeness; cost of the Monte Carlo test.
-\item \textbf{Future work.} Nonlinear extension of the test, randomised p-values,
-  FCI for blocks, setting B (environments), block-level effect estimation, further
-  learners.
+\item \textbf{Limitations.} Nonlinear dependence of $X$ on $V$ (rotation preserves
+  only second moments; residual tests need accurate regressions); high-dimensional
+  conditioning blocks; RV permutation under heteroskedasticity; faithfulness and
+  sufficiency; tie-induced conservativeness; cost of the Monte Carlo test.
+\item \textbf{Future work.} Residual-permutation resampling for nonlinear learners,
+  randomised p-values, FCI for blocks, setting B (environments), block-level effect
+  estimation, further learners.
 \end{itemize}
 
 \appendix
 \section*{Appendix}
 \begin{itemize}
 \item Proofs for Section 2 and for the rotation test.
-\item Details of the simulators and additional tables and figures.
+\item Details of the simulators (\fn{gen\_blocks()} in the script
+  \texttt{simulation\_study\_noise.R} in \texttt{inst/benchmarks}) and additional
+  tables and figures (heatmaps of rejection rates).
 \item Software and reproducibility.
 \end{itemize}
 
@@ -306,12 +560,22 @@ $\,$
 \bibitem{KB07} Kalisch, M. and B\"uhlmann, P. (2007). Estimating high-dimensional directed acyclic graphs with the PC-algorithm. \emph{JMLR} 8, 613--636.
 \bibitem{CM14} Colombo, D. and Maathuis, M. H. (2014). Order-independent constraint-based causal structure learning. \emph{JMLR} 15, 3741--3782.
 \bibitem{SP20} Shah, R. D. and Peters, J. (2020). The hardness of conditional independence testing and the generalised covariance measure. \emph{Annals of Statistics} 48(3), 1514--1538.
-\bibitem{Lang05} Langs{\o}d, \O. (2005). Rotation tests. \emph{Statistics and Computing} 15, 53--60.
+\bibitem{SHB22} Scheidegger, C., H\"orrmann, J. and B\"uhlmann, P. (2022). The weighted generalised covariance measure. \emph{JMLR} 23.
+\bibitem{WNR} Wahl, J., Ninad, U. and Runge, J. Foundations of causal discovery on groups of variables. arXiv:2306.07047.
+\bibitem{NW25} Ninad, U. and Wahl, J. (2025). Causal discovery on vector-valued variables and consistency-guided aggregation. arXiv:2505.10476.
+\bibitem{Lang05} Langsrud, \O. (2005). Rotation tests. \emph{Statistics and Computing} 15, 53--60.
 \bibitem{NB03} Nadeau, C. and Bengio, Y. (2003). Inference for the generalization error. \emph{Machine Learning} 52, 239--281.
 \bibitem{Naes11} N\ae s, T., Tomic, O., Mevik, B.-H. and Martens, H. (2011). Path modelling by sequential PLS regression. \emph{Journal of Chemometrics} 25, 28--40.
+\bibitem{Naes21} N\ae s, T., Romano, R., Tomic, O., M\aa ge, I., Smilde, A. K. and Liland, K. H. (2021). Sequential and orthogonalized PLS (SO-PLS) regression for path analysis: Order of blocks and relations between effects. \emph{Journal of Chemometrics} 35(10), e3243.
+\bibitem{Rom19} Romano, R., Tomic, O., Liland, K. H., Smilde, A. and N\ae s, T. (2019). A comparison of two PLS-based approaches to structural equation modeling. \emph{Journal of Chemometrics} 33, e3105.
 \bibitem{Lil16} Liland, K. H., N\ae s, T. and Indahl, U. G. (2016). ROSA --- a fast extension of partial least squares regression for multiblock data analysis. \emph{Journal of Chemometrics} 30, 651--662.
+\bibitem{ATW19} Athey, S., Tibshirani, J. and Wager, S. (2019). Generalized random forests. \emph{Annals of Statistics} 47(2), 1148--1178.
+\bibitem{CG16} Chen, T. and Guestrin, C. (2016). XGBoost: A scalable tree boosting system. KDD.
+\bibitem{RE76} Robert, P. and Escoufier, Y. (1976). A unifying tool for linear multivariate statistical methods: the RV-coefficient. \emph{Applied Statistics} 25, 257--265.
+\bibitem{SRB07} Sz\'ekely, G. J., Rizzo, M. L. and Bakirov, N. K. (2007). Measuring and testing dependence by correlation of distances. \emph{Annals of Statistics} 35, 2769--2794.
 \bibitem{PBM16} Peters, J., B\"uhlmann, P. and Meinshausen, N. (2016). Causal inference by using invariant prediction. \emph{JRSS B} 78, 947--1012.
-\bibitem{CCI} \todo{Thorjussen et al.: CCI test (thesis, Article 1) --- add full reference.}
+\bibitem{CCI} Thorjussen, C. B. H., Liland, K. H., M\aa ge, I. and Solberg, L. E. (2024). Computational test for conditional independence. \emph{Algorithms} 17(8), 323.
+\bibitem{CCIsw} Thorjussen, C. B. H., Liland, K. H., Solberg, L. E. and M\aa ge, I. (2026). CCI: An R package for computational conditional independence testing. \emph{SoftwareX} 34.
 \bibitem{SOPLS} \todo{J{\o}rgensen, Mevik and N\ae s (2007), SO-PLS --- check reference details.}
 
 \end{thebibliography}
