@@ -17,7 +17,9 @@ cci_null_dist(
   cv_segments = 5,
   method_args = list(),
   group_size = 10,
-  progress = FALSE
+  progress = FALSE,
+  reduce = c("none", "pca", "pls"),
+  reduce_ncomp = "auto"
 )
 }
 \arguments{
@@ -67,6 +69,20 @@ receives the list as \code{opts$args}.}
 \item{group_size}{rows per cluster for \code{resampling = "conditional"}}
 
 \item{progress}{show a progress bar}
+
+\item{reduce}{dimension reduction of the conditioning blocks before the
+regression: \code{"none"} (default), \code{"pca"} (principal component scores of all V
+blocks together, standardised) or \code{"pls"} (scores of a PLS regression of Y on V).
+The reduction is fitted on the training rows only, and the V blocks are replaced
+by one block of scores for both M0 and M1 (X is not reduced). Useful when V has
+many columns and a nonlinear learner ("RF", "XGB") has to learn functions of a few
+directions of V.}
+
+\item{reduce_ncomp}{number of scores: \code{"auto"} or a number. For \code{"pca"}, \code{"auto"}
+keeps the components whose eigenvalue (correlation matrix of V) exceeds the
+Marchenko-Pastur noise edge \code{(1 + sqrt(p/n))^2} (at most 20; if none does, the
+components explaining 90 \% of the variance); for \code{"pls"} the number is chosen by
+cross-validation on the training rows (at most 10).}
 }
 \value{
 numeric vector of \code{nperm} null statistics

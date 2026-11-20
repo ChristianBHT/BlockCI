@@ -16,7 +16,9 @@ cci_test_gen(
   method_args = list(),
   split = NULL,
   losses = FALSE,
-  yh0 = NULL
+  yh0 = NULL,
+  reduce = c("none", "pca", "pls"),
+  reduce_ncomp = "auto"
 )
 }
 \arguments{
@@ -65,6 +67,20 @@ rows is drawn). \code{\link[=Block.CCI.fast]{Block.CCI.fast()}} uses it to fit X
 with the same \code{data} (apart from X), \code{split} and settings, as returned with
 \code{losses = TRUE}. M0 does not depend on X, so it is then not refitted: only M1
 is fitted. \code{\link[=Block.CCI.fast]{Block.CCI.fast()}} uses this for the resampled X*.}
+
+\item{reduce}{dimension reduction of the conditioning blocks before the
+regression: \code{"none"} (default), \code{"pca"} (principal component scores of all V
+blocks together, standardised) or \code{"pls"} (scores of a PLS regression of Y on V).
+The reduction is fitted on the training rows only, and the V blocks are replaced
+by one block of scores for both M0 and M1 (X is not reduced). Useful when V has
+many columns and a nonlinear learner ("RF", "XGB") has to learn functions of a few
+directions of V.}
+
+\item{reduce_ncomp}{number of scores: \code{"auto"} or a number. For \code{"pca"}, \code{"auto"}
+keeps the components whose eigenvalue (correlation matrix of V) exceeds the
+Marchenko-Pastur noise edge \code{(1 + sqrt(p/n))^2} (at most 20; if none does, the
+components explaining 90 \% of the variance); for \code{"pls"} the number is chosen by
+cross-validation on the training rows (at most 10).}
 }
 \value{
 named vector \verb{M0, M1, T = M1 - M0, a, b} (RMSEP scale). \code{a} and \code{b} are

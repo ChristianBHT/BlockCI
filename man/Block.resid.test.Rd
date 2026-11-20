@@ -20,7 +20,9 @@ Block.resid.test(
   linear_first = TRUE,
   k0 = 7,
   method_args = list(),
-  seed = NA
+  seed = NA,
+  reduce = c("none", "pca", "pls"),
+  reduce_ncomp = "auto"
 )
 }
 \arguments{
@@ -74,6 +76,14 @@ or \code{num.threads} (1; \code{NULL} uses all cores). A learner function receiv
 list as \code{opts$args}.}
 
 \item{seed}{optional random seed.}
+
+\item{reduce}{dimension reduction of Z before the regression: \code{"none"} (default),
+\code{"pca"} or \code{"pls"} (see Details).}
+
+\item{reduce_ncomp}{number of scores: \code{"auto"} or a number. For \code{"pca"}, \code{"auto"}
+keeps the components above the Marchenko-Pastur noise edge (see
+\code{\link[=cci_test_gen]{cci_test_gen()}}); for \code{"pls"}, the number of components of the linear step
+(chosen by CV with \code{ncomp = "auto"}).}
 }
 \value{
 an object of class \code{c("BlockResid", "htest")} with the statistic, the
@@ -118,6 +128,18 @@ predictions unless \code{method_args = list(oob = FALSE)}.
 to \code{.resid_methods} in that file.
 }
 
+\strong{Dimension reduction (\code{reduce}).} With many conditioning variables a tree
+learner may not find the few directions of Z that matter. \code{reduce = "pca"}
+replaces the Z blocks by their principal component scores (one block; fitted on
+all rows, which is allowed since PCA does not use X or Y) for the regression, the
+conditional permutation and the wGCM weights. \code{reduce = "pls"} (\code{"XGB"} and \code{"RF"}
+only) feeds the tree learner with the PLS scores of the linear step of each fold
+(fitted on the training rows, separately for X and Y) instead of Z itself; the
+linear step then removes the linear part as before. For \code{"PLS"} and \code{"ROSA"},
+which already work on a few components, \code{reduce = "pls"} is ignored.
+A nonlinear effect of Z that is shared by X and Y and lies outside the retained
+directions is not removed, and the test then rejects also under the null.
+
 \strong{Weighted GCM (\code{stat = "wgcm"}).} The multivariate weighted generalised
 covariance measure with fixed weights (mWGCM.fix; Scheidegger, Hoerrmann and
 Buehlmann 2022, JMLR 23, Appendix A.1). For every pair of a residual column of X
@@ -150,5 +172,8 @@ Block.resid.test(Y ~ X | Z1 + Z2, data, method = "XGB", B = 199,
                  method_args = list(nrounds = 300))
 Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", linear_first = FALSE)  # RF alone
 Block.resid.test(Y ~ X | Z1 + Z2, data, stat = "wgcm")                # weighted GCM
+# many conditioning variables: RF on the PLS scores, or PLS on PCA scores
+Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", reduce = "pls")
+Block.resid.test(Y ~ X | Z1 + Z2, data, method = "PLS", reduce = "pca")
 }
 }

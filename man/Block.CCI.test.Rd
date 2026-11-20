@@ -8,7 +8,7 @@
 Block.CCI.test(
   formula,
   data,
-  method = "SOPLS",
+  method = "PLS",
   resampling = c("rotation", "permutation", "conditional"),
   nperm = 160,
   p = 0.75,
@@ -20,7 +20,9 @@ Block.CCI.test(
   pvalue = c("empirical", "parametric"),
   group_size = 10,
   seed = NA,
-  progress = TRUE
+  progress = TRUE,
+  reduce = c("none", "pca", "pls"),
+  reduce_ncomp = "auto"
 )
 
 \method{print}{BlockCCI}(x, ...)
@@ -81,6 +83,20 @@ Both p-values are stored in the result as \code{p.empirical} and \code{p.paramet
 
 \item{progress}{show a progress bar}
 
+\item{reduce}{dimension reduction of the conditioning blocks before the
+regression: \code{"none"} (default), \code{"pca"} (principal component scores of all V
+blocks together, standardised) or \code{"pls"} (scores of a PLS regression of Y on V).
+The reduction is fitted on the training rows only, and the V blocks are replaced
+by one block of scores for both M0 and M1 (X is not reduced). Useful when V has
+many columns and a nonlinear learner ("RF", "XGB") has to learn functions of a few
+directions of V.}
+
+\item{reduce_ncomp}{number of scores: \code{"auto"} or a number. For \code{"pca"}, \code{"auto"}
+keeps the components whose eigenvalue (correlation matrix of V) exceeds the
+Marchenko-Pastur noise edge \code{(1 + sqrt(p/n))^2} (at most 20; if none does, the
+components explaining 90 \% of the variance); for \code{"pls"} the number is chosen by
+cross-validation on the training rows (at most 10).}
+
 \item{x}{a \code{BlockCCI} object}
 
 \item{...}{unused}
@@ -112,11 +128,11 @@ one (\code{pvalue = "empirical"}), or from a normal fit to the null statistics
 
 The regression behind M0 (Y ~ V) and M1 (Y ~ V + X) is chosen with \code{method}:
 \itemize{
-\item \code{"SOPLS"} (default): sequential and orthogonalised PLS (\code{multiblock::sopls});
+\item \code{"PLS"}(default): ordinary PLS (\code{pls::plsr}) on the \code{cbind}-ed blocks; the number of
+components of each model is chosen by inner CV.
+\item \code{"SOPLS"} : sequential and orthogonalised PLS (\code{multiblock::sopls});
 each V block is a separate block. With \code{ncomp = "auto"} each V block gets one
 component and the number of X components is chosen by inner CV.
-\item \code{"PLS"}: ordinary PLS (\code{pls::plsr}) on the \code{cbind}-ed blocks; the number of
-components of each model is chosen by inner CV.
 \item \code{"ROSA"}: response-oriented sequential alternation (\code{multiblock::rosa}); every
 block is kept separate and each component comes from the block that best
 explains the current Y residual. Components chosen by inner CV.
@@ -125,6 +141,11 @@ explains the current Y residual. Components chosen by inner CV.
 \item a learner function with the interface described in \code{R/learners.R}. New methods
 can be made available by name by adding them to \code{.cci_methods} in that file.
 }
+
+With many conditioning variables, \code{reduce = "pca"} or \code{"pls"} replaces the V blocks
+by a few scores before the regression (fitted on the training rows of every split),
+so that a nonlinear learner works on a low-dimensional input; see \code{\link[=cci_test_gen]{cci_test_gen()}}.
+The resampling of X still adjusts for the full V.
 
 All tuning (components, ...) uses the training rows only, identically for the
 observed and the resampled X. See \code{\link[=cci_test_gen]{cci_test_gen()}} for the details of each
