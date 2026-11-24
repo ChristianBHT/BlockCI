@@ -3,7 +3,9 @@
 \baselineskip=16pt
 
 \usepackage{indentfirst,csquotes}
+\usepackage{tikz}  
 
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric}
 \topmargin= .5cm
 \textheight= 20cm
 \textwidth= 32cc
@@ -80,7 +82,9 @@ $\,$
 \section{Introduction}
 Path analysis and causal analysis are used interchangebly and refer to . Strucutural equation modeling (SEM) is a modeling framework for combining factor analysis with linear multivariate regression, where factor analysis is used to extract latent variables from a block of data, which again . SEM has several limitations, most importantly it is dependent on a apriori theoretical specification. Secondly, SEM can only estimate linear relationsships, and will fail in cases where relationsships inside a block of data or between blocks are non-linear.    
 
-This paper address several gaps in the literature. It proposes and tests several conditional independence testing method between blocks of data, tests that can handle non-linear high dimensional blocks of data.  
+This paper address several gaps in the literature. It proposes and tests several conditional independence testing method between blocks of data based on two different philosophies of testing conditional independence, residual based testing and prediction based testing. Importantly, the tests are designed to handle collinear high-dimenional blocks of data, and even non-linear relations between blocks of data. We run an extensive simulation study to assess the type I error control (validity) and power under different noise, dimension and nonlinearity. Given a valid test for conditional independence, we implement conditional independence testing between blocks into the PC-algorithm in order to create a causal discovery method for blocks of data. We also tackle the order of blocks problem as stated in SO-PLS path modeling \cite{Naes2011, Romano2019}  
+
+ 
 \begin{itemize}
 \item \textbf{Motivation.} Multiblock data: several matrices on the same objects
   (spectra, sensory profiles, process settings, consumer data, omics). Questions
@@ -115,12 +119,64 @@ This paper address several gaps in the literature. It proposes and tests several
 
 % =============================================================================
 \section{Block Graphical Modelling}
-\begin{itemize}
-\item \textbf{Notation.} Block $X_k\in\mathbb{R}^{n\times p_k}$, rows are objects.
-  A partition of the variable set into blocks $\mathcal{B}=\{B_1,\dots,B_K\}$.
-\item \textbf{Definition (block CI).} $B_i \ci B_j \mid B_S$ means the random
-  vectors are conditionally independent. Note this is a statement about whole
-  blocks, not about individual columns.
+A block of data $X_k$ is an $n \times p_k$ dimensional random vector or matrix, i.e. $X_k\in\mathbb{R}^{n\times p_k}$. The $n$-rows are observations and we usually refer to the $p_k$ columns as variables. For instance,  $p_k$ can be spectral measurements from a spectrometer, and $n$ is the number of measurements, or $p_k$ can be a set of assoicated genes and $n$ be the number of individuals. A variable set can be partitioned into a set of blocks  $\mathcal{B}=\{B_1,\dots,B_K\}$ and block conditional indepenence is notated as $B_i \ci B_j \mid B_S$, meaning that the random matricies  $B_i$  and  $B_j$ are conditional independent given $B_S$.  Note this is a statement about whole
+  blocks, not about individual columns.   
+  
+ A block graph is a directed acyclic graph (DAG) where the nodes are blocks of data and the edges are the edges are directed causal relations between blocks. Causality between two blocks is notated as $B_i \rightarrow B_j$ and is metaphysically is defined as block of data $B_j$ `'listens'' to $B_i$ in that if at least one variable in $B_j$ where to change, cetrius paribus, at least one of variables in $B_j$ would also (directly) change\footnote{There is an extende metaphysical discussion on the defintion of causality both in general and concerning DAGs (see \cite{Pearl, Heckman, }, we do not discuss this topic here but notes that several different defintions of causality fits withing the graphical causal framework. }. 
+ 
+ 
+ \begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance = 1cm and 1cm,
+    block/.style = {circle, draw, thick, minimum size = 9mm, inner sep = 0pt},
+    edge/.style  = {-{Stealth[length = 2.5mm]}, thick}
+]
+  \node[block]                     (B2) {$B_2$};
+  \node[block, below left  = of B2] (B1) {$B_1$};
+  \node[block, below right = of B2] (B3) {$B_3$};
+
+  \draw[edge] (B2) -- (B1);
+  \draw[edge] (B2) -- (B3);
+\end{tikzpicture}
+\caption{A DAB showing conditional independence between $B_1$ and $B_3$. $B_1$ and $B_3$ are dependent, but that is because of their common cause: $B_2$.}
+\label{fig:fork}
+\end{figure}
+ 
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+node distance = 1cm and 1.4cm,
+    block/.style = {circle, draw, thick, minimum width = 15mm, minimum height = 7mm,
+                    font = \bfseries},
+    edge/.style  = {-{Stealth[length = 2.5mm]}, thick}
+    ]
+  % nodes
+  \node[block] (A) at (0,    1.2) {A};
+  \node[block] (B) at (0,    0)   {B};
+  \node[block] (C) at (2.8,  0)   {C};
+  \node[block] (D) at (2.8, -1.3) {D};
+  \node[block] (E) at (5.6,  1.2) {E};
+  \node[block] (F) at (5.6,  0)   {F};
+
+  % left branch
+  \draw[edge] (A) -- (B);
+  \draw[edge] (A) -- (C);
+  \draw[edge] (B) -- (C);
+  \draw[edge] (B) -- (D);
+  % right branch
+  \draw[edge] (E) -- (F);
+  \draw[edge] (E) -- (C);
+  \draw[edge] (F) -- (C);
+  % stem
+  \draw[edge] (C) -- (D);
+\end{tikzpicture}
+\caption{A DAG with a non-unique topological order (after Næs et al.\ 2021,
+Figure 1A). Both A B E F C D and E F A B C D are topological orders.}
+\label{fig:nonunique-order}
+\end{figure}
+ 
+ \begin{itemize}
 \item \textbf{Block graph.} Nodes are blocks, edges between blocks. Relation to an
   underlying variable-level DAG $\mathcal{G}$: block graph as a \emph{contraction} of
   $\mathcal{G}$ along the partition.
@@ -144,6 +200,9 @@ This paper address several gaps in the literature. It proposes and tests several
   variables inside blocks are fine, shared hidden causes between blocks are not);
   linearity assumptions where the test needs them.
 \end{itemize}
+\subsection{Topological order}
+\subsection{SO-PLS}
+\subsection{PC-algorithm}
 
 % =============================================================================
 \section{Conditional Independence Tests between Blocks of Data}
@@ -245,6 +304,7 @@ This paper address several gaps in the literature. It proposes and tests several
   the noise scale of $X$ and $Y$ depends on $V$ (shared heteroskedasticity); the
   studentised weighted GCM does not need it.
 \item \textbf{Computational complexity} of each test.
+\item Exchangeability assumption 
 \end{itemize}
 
 \subsection*{3.6 Software}

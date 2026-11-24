@@ -41,7 +41,8 @@ default_settings <- list(
   num_trees = 500,     # trees per forest (RF methods)
   threads   = NULL,    # forest threads: NULL = all cores (one test at a time); 1 in parallel jobs
   nfolds    = 5,       # cross-fitting folds in Block.resid.test
-  k0        = 3        # weight functions per Z column for the weighted GCM
+  k0        = 3,       # weight functions per Z column for the weighted GCM
+  group_size = 10      # group size for conditional permutation (resampling = "conditional")
 )
 
 test_methods <- list(
@@ -71,7 +72,19 @@ test_methods <- list(
   CCI_RF_pca  = function(f, d, s) Block.CCI.test(f, d, method = "RF", reduce = "pca", nperm = s$nperm, progress = FALSE,
                                                  method_args = list(num.trees = s$num_trees, num.threads = s$threads)),
   CCI_RF_pls  = function(f, d, s) Block.CCI.test(f, d, method = "RF", reduce = "pls", nperm = s$nperm, progress = FALSE,
-                                                 method_args = list(num.trees = s$num_trees, num.threads = s$threads))
+                                                 method_args = list(num.trees = s$num_trees, num.threads = s$threads)),
+  # resampling of X for the null distribution: permutation (unconditional: breaks X-Z) and
+  # conditional permutation (within groups of similar Z); the entries above use rotation
+  CCI_PLS_perm = function(f, d, s) Block.CCI.test(f, d, method = "PLS", resampling = "permutation",
+                                                  nperm = s$nperm, progress = FALSE),
+  CCI_PLS_cond = function(f, d, s) Block.CCI.test(f, d, method = "PLS", resampling = "conditional",
+                                                  group_size = s$group_size, nperm = s$nperm, progress = FALSE),
+  CCI_RF_perm  = function(f, d, s) Block.CCI.test(f, d, method = "RF", resampling = "permutation",
+                                                  nperm = s$nperm, progress = FALSE,
+                                                  method_args = list(num.trees = s$num_trees, num.threads = s$threads)),
+  CCI_RF_cond  = function(f, d, s) Block.CCI.test(f, d, method = "RF", resampling = "conditional",
+                                                  group_size = s$group_size, nperm = s$nperm, progress = FALSE,
+                                                  method_args = list(num.trees = s$num_trees, num.threads = s$threads))
 )
 
 # ---- noise and data generators ---------------------------------------------------------
@@ -124,6 +137,7 @@ nl_features <- function(Z) {
 #   snr                : variance of the Z-part of each X / Y column (noise variance 1)
 gen_blocks <- function(n, noise = "gaussian", effect = 0, design = "linear",
                        snr = 2, pz = 4, q = 4) {
+  design <- match.arg(design, c("linear", "nonlinear", "highdim", "highdim_linear"))
   if (design %in% c("highdim", "highdim_linear")) {
     pz <- 100; q <- 10; r <- 3
     L  <- matrix(rnorm(r * 2 * pz), r, 2 * pz)                      # factor loadings
@@ -306,7 +320,7 @@ collect_studies <- function(dir) {
 }
 # Single test
 for (n in c(100, 200)) for (e in c(0, 0.5))
-  study_gaussian_noise(c("RES_PLS"), effect = e, n = n, n_tests = 50, seed = n + 10 * e, save_dir = "test", design = "non-linear")
+  study_gaussian_noise(c("RES_PLS"), effect = e, n = n, n_tests = 50, seed = n + 10 * e, save_dir = "test", design = "nonlinear")
 
 # ---- Studies Residual based tests ------------------------------------------------------------------------------
 # Linear cases
@@ -362,22 +376,39 @@ for (n in c(200, 500, 1000)) for (e in c(0, 0.5))
 # ---- Studies CCI based tests ------------------------------------------------------------------------------
 cci_methods <- c("CCI_PLS", "CCI_ROSA", "CCI_RF")
 
-studies <- list(
-  # gaussian   = study_gaussian_noise,
-  # t3         = study_t3_noise,
-  # laplace    = study_laplace_noise,
-  # skewed     = study_skewed_noise,
-  # poisson    = study_poisson_noise,
-  outlier    = study_outlier_noise,
-  hetero     = study_hetero_noise,
-  correlated = study_correlated_noise
-)
 
-for (s in names(studies))
-  for (n in c(200, 500, 1000)) for (e in c(0, 0.5))
-    studies[[s]](cci_methods, effect = e, n = n, n_tests = 100, seed = n + 10 * e,
-                 save_dir = paste0(s, "_cci_results"))
-
+  for (n in c(200, 500, 1000)) 
+    for (e in c(0, 0.5))
+      study_gaussian_noise(cci_methods, effect = e, n = n, n_tests = 100, seed = n + 10 * e, save_dir = "gaussian_cci_results")
+  
+  for (n in c(200, 500, 1000)) 
+    for (e in c(0, 0.5))
+      study_t3_noise(cci_methods, effect = e, n = n, n_tests = 100, seed = n + 10 * e, save_dir = "t3_cci_results")
+  
+  for (n in c(200, 500, 1000)) 
+    for (e in c(0, 0.5))
+      study_laplace_noise(cci_methods, effect = e, n = n, n_tests = 100, seed = n + 10 * e, save_dir = "laplace_cci_results")
+  
+  for (n in c(1000)) 
+    for (e in c(0.5))
+      study_skewed_noise(cci_methods, effect = e, n = n, n_tests = 100, seed = n + 10 * e, save_dir = "skewed_cci_results")
+  
+  for (n in c(200, 500, 1000)) 
+    for (e in c(0, 0.5))
+      study_poisson_noise(cci_methods, effect = e, n = n, n_tests = 100, seed = n + 10 * e, save_dir = "poisson_cci_results")
+  
+  for (n in c(200, 500, 1000)) 
+    for (e in c(0, 0.5))
+      study_outlier_noise(cci_methods, effect = e, n = n, n_tests = 100, seed = n + 10 * e, save_dir = "outlier_cci_results")
+  
+  for (n in c(200, 500, 1000)) 
+    for (e in c(0, 0.5))
+      study_hetero_noise(cci_methods, effect = e, n = n, n_tests = 100, seed = n + 10 * e, save_dir = "hetero_cci_results")
+  
+  for (n in c(200, 500, 1000)) 
+    for (e in c(0, 0.5))
+      study_correlated_noise(cci_methods, effect = e, n = n, n_tests = 100, seed = n + 10 * e, save_dir = "correlated_cci_results")
+  
 cci_methods <- c("CCI_RF")
 
 studies <- list(
@@ -412,10 +443,32 @@ study_highdim("CCI_PLS", effect = 0, n = 400, n_tests = 5)
 
 # ---- High-dimensional studies: linear check and the nonlinear limit case --------------------
 # Linear high-dimensional design: linear methods should hold the level.
-# for (n in c(200, 500, 1000)) for (e in c(0, 0.2))
-#   study_highdim_linear(c("RES_PLS", "RES_PLS_pca", "CCI_PLS", "CCI_PLS_pca"), effect = e, n = n,
-#                        n_tests = 100, seed = n + 10 * e, save_dir = "highdim_results")
+for (n in c(200, 500, 1000)) for (e in c(0, 0.5))
+   study_highdim_linear(c("RES_PLS", "RES_PLS_pca", "CCI_PLS", "CCI_PLS_pca"), effect = e, n = n,
+                        n_tests = 100, seed = n + 10 * e, save_dir = "highdim_results_linear")
 # Nonlinear limit case: tree learners on reduced Z (expected to stay liberal at large n).
-# for (n in c(200, 500, 1000))
-#   study_highdim(c("RES_RF_pls", "RES_RF_pca", "RES_RF_pca_wgcm", "CCI_RF_pca", "CCI_RF_pls"),
-#                 effect = 0, n = n, n_tests = 100, seed = n, save_dir = "highdim_results")
+for (n in c(200, 500, 1000)) for (e in c(0, 0.5))
+  study_highdim(c("RES_RF_pls", "RES_RF_pca", "RES_RF_pca_wgcm", "CCI_RF_pca", "CCI_RF_pls"), effect = e, n = n,
+                       n_tests = 100, seed = n + 10 * e, save_dir = "highdim_results_nonlinear")
+
+# ---- Resampling of X: rotation vs permutation vs conditional permutation ---------------------
+# Same seeds as the rotation studies above (seed = n + 10 * e), so the datasets are the same
+# and the results can be compared pair by pair with the existing *_cci_results /
+# *_nonlin_cci_results folders. Hypothesis to test: conditional permutation controls the
+# type I error less well than unconditional permutation in some settings.
+# Priority: effect = 0 (type I error) first; then effect = 0.5 (power).
+resampling_methods <- c("CCI_PLS_perm", "CCI_PLS_cond", "CCI_RF_perm", "CCI_RF_cond")
+resampling_noise <- list(skewed = study_skewed_noise, outlier = study_outlier_noise, hetero = study_hetero_noise)
+
+for (des in c("linear", "nonlinear"))
+  for (s in names(resampling_noise))
+    for (n in c(500, 1000)) for (e in c(0))
+      resampling_noise[[s]](resampling_methods, effect = e, n = n, n_tests = 100, seed = n + 10 * e,
+                            design = des,
+                            save_dir = paste0(s, if (des == "nonlinear") "_nonlin", "_cci_resampling_results"))
+
+# conditional permutation with smaller groups (closer to the exact conditional null)
+# for (s in c("gaussian", "outlier")) for (n in c(500, 1000))
+#   resampling_noise[[s]](c("CCI_PLS_cond", "CCI_RF_cond"), effect = 0, n = n, n_tests = 100,
+#                         seed = n, design = "nonlinear", settings = list(group_size = 5),
+#                         save_dir = paste0(s, "_nonlin_cci_cond_g5_results"))
