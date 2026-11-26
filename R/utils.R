@@ -3,10 +3,10 @@
 #   Block.CCI.test() ~ CCI.test()   : user interface (formula + data + method)
 #   cci_null_dist()  ~ perm.test()  : builds the null distribution
 #   cci_test_gen()   ~ test.gen()   : one MCCV statistic
-#   learners.R                      : the regression methods ("SOPLS", "PLS", "XGB", "RF")
+#   learners.R                      : the regression methods ("SOPLS", "PLS", "XGB", "RF", "KNN")
 # Residual test: Block.resid.test() with the residual learners in resid_learners.R
-#   ("PLS", "ROSA", "XGB", "RF") and .resid_perm_test() below.
-# Requires: multiblock (sopls), pls (plsr); xgboost and grf are optional
+#   ("PLS", "ROSA", "XGB", "RF", "KNN") and .resid_perm_test() below.
+# Requires: multiblock (sopls), pls (plsr); xgboost, grf and FNN (KNN) are optional
 
 # ---- helpers ---------------------------------------------------------------
 
@@ -78,7 +78,12 @@ rotate_X <- function(X, V = NULL) {
   if (r == 0) return(X)
   G <- matrix(rnorm(n * r), n, r)
   G <- G - qr.fitted(Q, G)                      # into complement of span(1, V)
-  Astar <- qr.Q(qr(G))[, seq_len(r), drop = FALSE]
+  qrG <- qr(G)
+  # Householder QR fixes the signs of Q by a convention that depends on G, so Q alone
+  # is not uniformly distributed. Flipping the columns so that diag(R) > 0 makes it so
+  # (Mezzadri 2007).
+  sgn <- ifelse(diag(qr.R(qrG)) < 0, -1, 1)
+  Astar <- sweep(qr.Q(qrG), 2, sgn, "*")
   fit + Astar %*% (sv$d[1:r] * t(sv$v[, 1:r, drop = FALSE]))
 }
 
@@ -88,50 +93,16 @@ rotate_X <- function(X, V = NULL) {
 #' @export
 permute_X <- function(X) X[sample.int(nrow(X)), , drop = FALSE]
 
-#' Conditional row permutation of X within groups of similar V
-#'
-#' Rows are clustered on the first (up to 3) principal components of V, with about
-#' `group_size` rows per cluster, and the rows of X are permuted only within
-#' clusters. This keeps the (possibly nonlinear) dependence between X and V
-#' approximately intact while breaking the dependence between X and Y given V.
-#'
-#' @param X numeric matrix to resample
-#' @param V numeric matrix of conditioning variables, or `NULL` (then a global
-#'   permutation is used)
-#' @param group_size desired number of rows per cluster
-#' @return `X` with rows permuted within clusters
-#' @export
-permute_X_cond <- function(X, V = NULL, group_size = 10) {
-  if (is.null(V)) return(permute_X(X))
-  .permute_within(X, .v_groups(V, group_size))
-}
-
-# cluster labels of the rows of V (kmeans on up to 3 principal components)
-.v_groups <- function(V, group_size = 10) {
-  n <- nrow(V)
-  pc <- stats::prcomp(V, scale. = TRUE)$x[, seq_len(min(ncol(V), 3)), drop = FALSE]
-  stats::kmeans(pc, centers = max(2, n %/% group_size), nstart = 5)$cluster
-}
-
-.permute_within <- function(X, grp) {
-  idx <- seq_len(nrow(X))
-  for (g in unique(grp)) {
-    i <- which(grp == g)
-    idx[i] <- i[sample.int(length(i))]
-  }
-  X[idx, , drop = FALSE]
-}
-
 # A function that returns a fresh resampled copy X* of X each time it is called.
-# The V clusters for resampling = "conditional" are computed once.
-.make_resampler <- function(X, Vm, resampling, group_size = 10) {
+# The neighbours in V for resampling = "conditional" are found once.
+.make_resampler <- function(X, Vm, resampling, k_perm = 5) {
   switch(resampling,
          rotation    = function() rotate_X(X, Vm),
          permutation = function() permute_X(X),
          conditional = {
            if (is.null(Vm)) function() permute_X(X) else {
-             grp <- .v_groups(Vm, group_size)
-             function() .permute_within(X, grp)
+             nb <- .knn_index(Vm, k_perm)
+             function() X[.local_perm(nb), , drop = FALSE]
            }
          })
 }
@@ -168,31 +139,24 @@ rmsep <- function(y, yhat) sqrt(mean((y - yhat)^2))
 }
 
 # Permutation test of dependence between the residual matrices X_res and Y_res.
-# 'conditional': rows are permuted only within clusters of similar Z.
-.resid_perm_test <- function(X_res, Y_res, Z, stat, perm, B, group_size, k0 = 7) {
+# 'conditional': greedy local permutation among the k_perm nearest neighbours in Z
+# (Runge 2018; see knn_perm.R).
+.resid_perm_test <- function(X_res, Y_res, Z, stat, perm, B, k_perm = 5, k0 = 7) {
   n <- nrow(X_res)
   X_res <- scale(X_res, scale = FALSE)
   Y_res <- scale(Y_res, scale = FALSE)
   # the weighted GCM has its own (Gaussian) null distribution; no permutations
   if (stat == "wgcm") return(.wgcm_test(X_res, Y_res, Z, B, k0))
   stat_fun <- .resid_stat_fun(stat)
-  if (perm == "conditional") {
-    k  <- min(ncol(Z), 3)
-    pc <- stats::prcomp(Z, scale. = TRUE)$x[, seq_len(k), drop = FALSE]
-    n_groups <- max(2, n %/% group_size)
-    grp <- stats::kmeans(pc, centers = n_groups, nstart = 5)$cluster
-  }
-  permute_rows <- function() {
-    if (perm == "simple") return(sample.int(n))
-    idx <- seq_len(n)
-    for (g in unique(grp)) {
-      i <- which(grp == g)
-      idx[i] <- i[sample.int(length(i))]
-    }
-    idx
+  if (perm == "conditional") nb <- .knn_index(Z, k_perm)
+  permuted <- function() {
+    if (perm == "simple") return(Y_res[sample.int(n), , drop = FALSE])
+    # the local scheme can repeat rows, so the columns are centred again
+    M <- Y_res[.local_perm(nb), , drop = FALSE]
+    sweep(M, 2, colMeans(M))
   }
   obs   <- stat_fun(X_res, Y_res)
-  perms <- replicate(B, stat_fun(X_res, Y_res[permute_rows(), , drop = FALSE]))
+  perms <- replicate(B, stat_fun(X_res, permuted()))
   list(obs = obs, perms = perms, p = (1 + sum(perms >= obs)) / (B + 1))
 }
 

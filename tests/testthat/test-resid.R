@@ -94,3 +94,27 @@ test_that("Block.resid.test: permutation statistics, print method and argument c
   expect_error(Block.resid.test(Y ~ X, d), "conditioning set")
   expect_error(Block.resid.test(Y ~ X | Z1, d, nfolds = 1), "nfolds")
 })
+
+test_that("Block.resid.test runs with KNN, with and without the linear step", {
+  skip_if_not_installed("FNN")
+  d <- sim_1(n = 200, p = 3)
+  r <- Block.resid.test(Y ~ X | Z1 + Z2, d, method = "KNN", B = 19, nfolds = 5, seed = 1)
+  expect_equal(r$regression, "KNN")
+  expect_true(r$linear_first)
+  expect_true(all(r$linear_ncomp >= 1))
+  expect_named(r$complexity, c("X", "Y"))
+  expect_true(all(r$complexity >= 3 & r$complexity <= 100))
+  expect_match(r$method, "PLS + KNN", fixed = TRUE)
+  r0 <- Block.resid.test(Y ~ X | Z1 + Z2, d, method = "KNN", linear_first = FALSE, B = 19,
+                         nfolds = 5, method_args = list(k = 8), seed = 1)
+  expect_false(r0$linear_first)
+  expect_equal(unname(r0$complexity), c(8, 8))
+  for (args in list(list(reduce = "pls"), list(reduce = "pca"), list(stat = "wgcm"),
+                    list(resid = "fitted"))) {
+    r <- do.call(Block.resid.test, c(list(Y ~ X | Z1 + Z2, d, method = "KNN", B = 19,
+                                          nfolds = 5, seed = 1), args))
+    expect_true(r$p.value > 0 && r$p.value <= 1)
+  }
+  r1 <- Block.resid.test(Y ~ X | Z1, d, method = "KNN", B = 99, seed = 1)   # Z2 missing: H0 false
+  expect_lt(r1$p.value, 0.05)
+})

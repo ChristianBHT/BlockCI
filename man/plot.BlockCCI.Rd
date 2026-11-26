@@ -33,8 +33,9 @@ p-value}
 }
 \description{
 Histogram of the null statistics \verb{T*} (from resampled copies of X) with
-the observed statistic \code{T_obs} marked by a vertical line. For a parametric
-p-value the fitted normal curve is added.
+the observed statistic \code{T_obs} marked by a vertical line (one line per
+observed split when \code{npval > 1}). For a parametric p-value the fitted normal
+curve is added.
 }
 \examples{
 \dontrun{

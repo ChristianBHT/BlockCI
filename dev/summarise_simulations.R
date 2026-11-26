@@ -1,7 +1,7 @@
 # 2. Simulation results: residual (RES) and CCI tests ------------------------------------
 library(ggplot2)
 
-base <- "~/BlockCI"
+base <- "simulation_results"     # run from the project folder
 
 # ---- read the summaries of all saved studies ----
 dirs  <- list.dirs(base, recursive = FALSE)

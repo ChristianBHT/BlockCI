@@ -19,7 +19,7 @@ Block.CCI.fast(
   cv_segments = 5,
   method_args = list(),
   correction = c("none", "nadeau-bengio"),
-  group_size = 10,
+  k_perm = 5,
   seed = NA,
   progress = TRUE,
   reduce = c("none", "pca", "pls"),
@@ -37,12 +37,12 @@ after the bar is its own V block.}
 in any used variable are dropped.}
 
 \item{method}{regression method: \code{"SOPLS"} (default), \code{"PLS"}, \code{"ROSA"}, \code{"XGB"},
-\code{"RF"} (case-insensitive) or a learner function (see Details).}
+\code{"RF"}, \code{"KNN"} (case-insensitive) or a learner function (see \code{\link[=cci_test_gen]{cci_test_gen()}}).}
 
 \item{resampling}{resampling of X: \code{"rotation"} (default; linear adjustment for
 V, see \code{\link[=rotate_X]{rotate_X()}}), \code{"permutation"} (global row permutation) or
-\code{"conditional"} (permute rows of X within groups of rows with similar V, see
-\code{\link[=permute_X_cond]{permute_X_cond()}})}
+\code{"conditional"} (greedy local permutation: each row of X is replaced by the X
+of a row with similar V, see \code{\link[=permute_X_cond]{permute_X_cond()}})}
 
 \item{p}{training fraction of each split}
 
@@ -71,8 +71,10 @@ selection}
 the xgboost parameters, defaults \verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}).
 For \code{"RF"}: any arguments of \code{\link[grf:multi_regression_forest]{grf::multi_regression_forest()}}, e.g.
 \code{num.trees} (2000), \code{num.threads} (1; \code{NULL} uses all cores),
-\code{min.node.size}, \code{mtry}, \code{sample.fraction} or \code{honesty}. A learner function
-receives the list as \code{opts$args}.}
+\code{min.node.size}, \code{mtry}, \code{sample.fraction} or \code{honesty}. For \code{"KNN"}: \code{k}
+(\code{"auto"}, default, or one number of neighbours for both models) and \code{k_grid}
+(candidates for \code{"auto"}; default 3, 5, 7, 10, 15, 20, 30, 50, 75, 100). A
+learner function receives the list as \code{opts$args}.}
 
 \item{correction}{\code{"none"} (default): plain t-test across the \code{nsplit} split
 statistics, i.e. variance \code{var(delta) / K}. Splits overlap, so this ignores
@@ -82,7 +84,8 @@ nominal 5\% level in small linear simulations), but it has much more power.
 \code{se = sqrt((1/K + n_test/n_train) * var(delta))}; valid but conservative with
 low power.}
 
-\item{group_size}{rows per cluster for \code{resampling = "conditional"}}
+\item{k_perm}{neighbourhood size (the row itself included) for
+\code{resampling = "conditional"}, see \code{\link[=permute_X_cond]{permute_X_cond()}} (default 5)}
 
 \item{seed}{optional random seed}
 
@@ -116,7 +119,7 @@ Instead of building a null distribution from R refits, this compares the model
 fitted on the real X with the same model fitted on a resampled X* (rotation by
 default) using the SAME train/test split, and repeats this for \code{nsplit} splits.
 The regression is chosen with \code{method}, as in \code{\link[=Block.CCI.test]{Block.CCI.test()}}: \code{"SOPLS"}
-(default), \code{"PLS"}, \code{"ROSA"}, \code{"RF"} (multi-output random forest), \code{"XGB"} or a
+(default), \code{"PLS"}, \code{"ROSA"}, \code{"RF"} (multi-output random forest), \code{"XGB"}, \code{"KNN"} or a
 learner function.
 }
 \details{
