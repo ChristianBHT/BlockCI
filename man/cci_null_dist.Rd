@@ -7,19 +7,20 @@
 cci_null_dist(
   formula,
   data,
-  method = "SOPLS",
+  method = "PLS",
   nperm = 160,
   resampling = c("rotation", "permutation", "conditional"),
-  p = 0.75,
+  p = 0.5,
   ncomp = "auto",
   scale = TRUE,
   max_ncomp = NULL,
   cv_segments = 5,
   method_args = list(),
-  group_size = 10,
+  k_perm = 5,
   progress = FALSE,
   reduce = c("none", "pca", "pls"),
-  reduce_ncomp = "auto"
+  reduce_ncomp = "auto",
+  crossfit = FALSE
 )
 }
 \arguments{
@@ -30,17 +31,17 @@ after the bar is its own V block.}
 \item{data}{named list of matrices (or a data.frame). Rows with missing values
 in any used variable are dropped.}
 
-\item{method}{regression method: \code{"SOPLS"} (default), \code{"PLS"}, \code{"ROSA"}, \code{"XGB"},
-\code{"RF"} (case-insensitive) or a learner function (see Details).}
+\item{method}{regression method: \code{"PLS"} (default), \code{"SOPLS"}, \code{"ROSA"}, \code{"XGB"},
+\code{"RF"}, \code{"KNN"} (case-insensitive) or a learner function (see Details).}
 
 \item{nperm}{number of null samples R}
 
 \item{resampling}{resampling of X: \code{"rotation"} (default; linear adjustment for
 V, see \code{\link[=rotate_X]{rotate_X()}}), \code{"permutation"} (global row permutation) or
-\code{"conditional"} (permute rows of X within groups of rows with similar V, see
-\code{\link[=permute_X_cond]{permute_X_cond()}})}
+\code{"conditional"} (greedy local permutation: each row of X is replaced by the X
+of a row with similar V, see \code{\link[=permute_X_cond]{permute_X_cond()}})}
 
-\item{p}{training fraction}
+\item{p}{training fraction (default 0.5)}
 
 \item{ncomp}{(\code{"SOPLS"}, \code{"PLS"}, \code{"ROSA"}) \code{"auto"} (chosen by inner CV as described
 above) or fixed numbers of components. For \code{"SOPLS"}: \code{c(a_1, ..., a_k, b)},
@@ -63,10 +64,13 @@ selection}
 the xgboost parameters, defaults \verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}).
 For \code{"RF"}: any arguments of \code{\link[grf:multi_regression_forest]{grf::multi_regression_forest()}}, e.g.
 \code{num.trees} (2000), \code{num.threads} (1; \code{NULL} uses all cores),
-\code{min.node.size}, \code{mtry}, \code{sample.fraction} or \code{honesty}. A learner function
-receives the list as \code{opts$args}.}
+\code{min.node.size}, \code{mtry}, \code{sample.fraction} or \code{honesty}. For \code{"KNN"}: \code{k}
+(\code{"auto"}, default, or one number of neighbours for both models) and \code{k_grid}
+(candidates for \code{"auto"}; default 3, 5, 7, 10, 15, 20, 30, 50, 75, 100). A
+learner function receives the list as \code{opts$args}.}
 
-\item{group_size}{rows per cluster for \code{resampling = "conditional"}}
+\item{k_perm}{neighbourhood size (the row itself included) for
+\code{resampling = "conditional"}, see \code{\link[=permute_X_cond]{permute_X_cond()}} (default 5)}
 
 \item{progress}{show a progress bar}
 
@@ -83,6 +87,13 @@ keeps the components whose eigenvalue (correlation matrix of V) exceeds the
 Marchenko-Pastur noise edge \code{(1 + sqrt(p/n))^2} (at most 20; if none does, the
 components explaining 90 \% of the variance); for \code{"pls"} the number is chosen by
 cross-validation on the training rows (at most 10).}
+
+\item{crossfit}{(experimental) if \code{TRUE}, every statistic is cross-fitted over two
+random halves of the rows instead of being computed on one train/test split: the
+models are fitted on each half and predict the other, the squared errors of all
+rows are pooled, and \code{T = RMSEP(Y ~ V + X) - RMSEP(Y ~ V)} is computed once from
+them. Every null draw gets its own resampled X* and its own random halves. Needs
+two statistics' worth of model fits per draw, and \code{p = 0.5}.}
 }
 \value{
 numeric vector of \code{nperm} null statistics

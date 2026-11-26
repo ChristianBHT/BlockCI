@@ -25,32 +25,47 @@
 #
 # Each call returns (invisibly) list(results = one row per test, summary = one row per
 # method, settings). With save_dir it is also saved as an .rds file; collect_studies()
-# reads all saved files into one table. To run several studies at the same time, start
-# them as separate RStudio Background Jobs (one R process each).
+# reads all saved files into one table. A relative save_dir is a folder inside
+# results_root ("simulation_results/", ignored by Git and by the package build), so run
+# from the project folder. To run several studies at the same time, start them as
+# separate RStudio Background Jobs (one R process each).
 #
 # Usage: install the package (devtools::install()), source this file, then call the study
 # functions (examples at the bottom).
 
 library(CausalBlocks)
 
+# ---- where results are saved -----------------------------------------------------------
+
+results_root <- "simulation_results"
+
+# a relative folder name lies inside results_root; a full path is used as it is
+results_path <- function(dir) {
+  if (grepl("^([A-Za-z]:|/|\\\\|~)", dir)) dir else file.path(results_root, dir)
+}
+
 # ---- settings and test methods ---------------------------------------------------------
 
 default_settings <- list(
   nperm     = 99,      # null draws in Block.CCI.test (p resolution 0.01)
+  p         = 0.5,     # training fraction in Block.CCI.test (older results: 0.75)
+  npval     = 1,       # observed splits whose p-values are averaged (> 1: experimental)
   B         = 199,     # permutations / Gaussian draws in Block.resid.test
   num_trees = 500,     # trees per forest (RF methods)
   threads   = NULL,    # forest threads: NULL = all cores (one test at a time); 1 in parallel jobs
   nfolds    = 5,       # cross-fitting folds in Block.resid.test
   k0        = 3,       # weight functions per Z column for the weighted GCM
-  group_size = 10      # group size for conditional permutation (resampling = "conditional")
+  k_perm    = 5        # neighbours in the local permutation (resampling = "conditional")
 )
 
 test_methods <- list(
-  CCI_RF      = function(f, d, s) Block.CCI.test(f, d, method = "RF", nperm = s$nperm, progress = FALSE,
+  CCI_RF      = function(f, d, s) Block.CCI.test(f, d, method = "RF", nperm = s$nperm, p = s$p, npval = s$npval, progress = FALSE,
                                                  method_args = list(num.trees = s$num_trees, num.threads = s$threads)),
-  CCI_PLS     = function(f, d, s) Block.CCI.test(f, d, method = "PLS", nperm = s$nperm, progress = FALSE),
-  CCI_SOPLS   = function(f, d, s) Block.CCI.test(f, d, method = "SOPLS", nperm = s$nperm, progress = FALSE),
-  CCI_ROSA    = function(f, d, s) Block.CCI.test(f, d, method = "ROSA", nperm = s$nperm, progress = FALSE),
+  CCI_PLS     = function(f, d, s) Block.CCI.test(f, d, method = "PLS", nperm = s$nperm, p = s$p, npval = s$npval, progress = FALSE),
+  # two-fold cross-fitted statistic and null draws (experimental; always p = 0.5, npval = 1)
+  CCI_PLS_cf  = function(f, d, s) Block.CCI.test(f, d, method = "PLS", nperm = s$nperm, crossfit = TRUE, progress = FALSE),
+  CCI_SOPLS   = function(f, d, s) Block.CCI.test(f, d, method = "SOPLS", nperm = s$nperm, p = s$p, npval = s$npval, progress = FALSE),
+  CCI_ROSA    = function(f, d, s) Block.CCI.test(f, d, method = "ROSA", nperm = s$nperm, p = s$p, npval = s$npval, progress = FALSE),
   FAST_RF     = function(f, d, s) Block.CCI.fast(f, d, method = "RF", progress = FALSE,
                                                  method_args = list(num.trees = s$num_trees, num.threads = s$threads)),
   RES_PLS     = function(f, d, s) Block.resid.test(f, d, method = "PLS", B = s$B, nfolds = s$nfolds),
@@ -59,6 +74,10 @@ test_methods <- list(
   RES_RF_wgcm = function(f, d, s) Block.resid.test(f, d, method = "RF", stat = "wgcm", k0 = s$k0, B = s$B,
                                                    nfolds = s$nfolds,
                                                    method_args = list(num.trees = s$num_trees, num.threads = s$threads)),
+  CCI_KNN     = function(f, d, s) Block.CCI.test(f, d, method = "KNN", nperm = s$nperm, p = s$p, npval = s$npval, progress = FALSE),
+  RES_KNN     = function(f, d, s) Block.resid.test(f, d, method = "KNN", B = s$B, nfolds = s$nfolds),
+  RES_KNN_wgcm = function(f, d, s) Block.resid.test(f, d, method = "KNN", stat = "wgcm", k0 = s$k0, B = s$B,
+                                                   nfolds = s$nfolds),
   # with dimension reduction of Z (for the high-dimensional designs)
   RES_PLS_pca = function(f, d, s) Block.resid.test(f, d, method = "PLS", reduce = "pca", B = s$B, nfolds = s$nfolds),
   RES_RF_pls  = function(f, d, s) Block.resid.test(f, d, method = "RF", reduce = "pls", B = s$B, nfolds = s$nfolds,
@@ -68,22 +87,22 @@ test_methods <- list(
   RES_RF_pca_wgcm = function(f, d, s) Block.resid.test(f, d, method = "RF", reduce = "pca", stat = "wgcm", k0 = s$k0,
                                                    B = s$B, nfolds = s$nfolds,
                                                    method_args = list(num.trees = s$num_trees, num.threads = s$threads)),
-  CCI_PLS_pca = function(f, d, s) Block.CCI.test(f, d, method = "PLS", reduce = "pca", nperm = s$nperm, progress = FALSE),
-  CCI_RF_pca  = function(f, d, s) Block.CCI.test(f, d, method = "RF", reduce = "pca", nperm = s$nperm, progress = FALSE,
+  CCI_PLS_pca = function(f, d, s) Block.CCI.test(f, d, method = "PLS", reduce = "pca", nperm = s$nperm, p = s$p, npval = s$npval, progress = FALSE),
+  CCI_RF_pca  = function(f, d, s) Block.CCI.test(f, d, method = "RF", reduce = "pca", nperm = s$nperm, p = s$p, npval = s$npval, progress = FALSE,
                                                  method_args = list(num.trees = s$num_trees, num.threads = s$threads)),
-  CCI_RF_pls  = function(f, d, s) Block.CCI.test(f, d, method = "RF", reduce = "pls", nperm = s$nperm, progress = FALSE,
+  CCI_RF_pls  = function(f, d, s) Block.CCI.test(f, d, method = "RF", reduce = "pls", nperm = s$nperm, p = s$p, npval = s$npval, progress = FALSE,
                                                  method_args = list(num.trees = s$num_trees, num.threads = s$threads)),
   # resampling of X for the null distribution: permutation (unconditional: breaks X-Z) and
-  # conditional permutation (within groups of similar Z); the entries above use rotation
+  # conditional (greedy local kNN) permutation; the entries above use rotation
   CCI_PLS_perm = function(f, d, s) Block.CCI.test(f, d, method = "PLS", resampling = "permutation",
-                                                  nperm = s$nperm, progress = FALSE),
+                                                  nperm = s$nperm, p = s$p, npval = s$npval, progress = FALSE),
   CCI_PLS_cond = function(f, d, s) Block.CCI.test(f, d, method = "PLS", resampling = "conditional",
-                                                  group_size = s$group_size, nperm = s$nperm, progress = FALSE),
+                                                  k_perm = s$k_perm, nperm = s$nperm, p = s$p, npval = s$npval, progress = FALSE),
   CCI_RF_perm  = function(f, d, s) Block.CCI.test(f, d, method = "RF", resampling = "permutation",
-                                                  nperm = s$nperm, progress = FALSE,
+                                                  nperm = s$nperm, p = s$p, npval = s$npval, progress = FALSE,
                                                   method_args = list(num.trees = s$num_trees, num.threads = s$threads)),
   CCI_RF_cond  = function(f, d, s) Block.CCI.test(f, d, method = "RF", resampling = "conditional",
-                                                  group_size = s$group_size, nperm = s$nperm, progress = FALSE,
+                                                  k_perm = s$k_perm, nperm = s$nperm, p = s$p, npval = s$npval, progress = FALSE,
                                                   method_args = list(num.trees = s$num_trees, num.threads = s$threads))
 )
 
@@ -215,14 +234,22 @@ run_study <- function(study, generator, testing_method, effect, n, n_tests,
     methods <- test_methods[testing_method]
   }
   if (!is.null(seed)) set.seed(seed)
+  # One seed per dataset and one per test, all drawn up front. The generator and the tests
+  # then do not share a random number stream, so dataset i depends only on `seed` (not on
+  # which methods are run) and a method's result does not depend on the other methods or
+  # their order. Filled column by column: a larger n_tests keeps the earlier seeds.
+  seeds <- matrix(sample.int(.Machine$integer.max, 2 * n_tests), nrow = 2,
+                  dimnames = list(c("data", "test"), NULL))
   total <- n_tests * length(methods)
   pb <- progress_start(total, sprintf("%s (%s), n = %d, effect = %g, %s", study, design, n, effect,
                                       paste(names(methods), collapse = " + ")))
   rows <- vector("list", total); k <- 0
   for (i in seq_len(n_tests)) {
+    set.seed(seeds["data", i])
     d <- generator(n, effect)
     f <- if (is.null(attr(d, "formula"))) Y ~ X | Z1 + Z2 else attr(d, "formula")
     for (m in names(methods)) {
+      set.seed(seeds["test", i])             # not the data seed: draws independent of the data
       t0 <- proc.time()[["elapsed"]]
       r <- tryCatch(methods[[m]](f, d, s), error = function(e) e)
       secs <- proc.time()[["elapsed"]] - t0
@@ -230,6 +257,7 @@ run_study <- function(study, generator, testing_method, effect, n, n_tests,
       k <- k + 1
       rows[[k]] <- data.frame(
         study = study, design = design, method = m, n = n, effect = effect, test = i,
+        data_seed = seeds[["data", i]],
         p = if (failed) NA_real_ else r$p.value,
         p_par = if (failed || is.null(r$p.parametric)) NA_real_ else r$p.parametric,
         seconds = secs, error = if (failed) conditionMessage(r) else NA_character_)
@@ -240,9 +268,11 @@ run_study <- function(study, generator, testing_method, effect, n, n_tests,
   summ <- summarise_tests(res, alpha)
   out <- list(results = res, summary = summ,
               settings = c(s, list(study = study, design = design, n = n, effect = effect,
-                                   n_tests = n_tests, alpha = alpha, seed = seed)))
+                                   n_tests = n_tests, alpha = alpha, seed = seed,
+                                   seed_scheme = "per_dataset")))   # absent in older files
   if (!is.null(save_dir)) {
-    dir.create(save_dir, showWarnings = FALSE, recursive = TRUE)
+    save_dir <- results_path(save_dir)
+    dir.create(save_dir,showWarnings = FALSE, recursive = TRUE)
     file <- file.path(save_dir, sprintf("%s_%s_%s_n%d_effect%s.rds", study, design,
                                         paste(names(methods), collapse = "-"), n, format(effect)))
     saveRDS(out, file)
@@ -312,9 +342,10 @@ study_highdim_linear <- function(testing_method, effect = 0, n = 500, n_tests = 
 
 # ---- reading saved studies ---------------------------------------------------------------
 
-# Summary rows of all studies saved in `dir`, as one table.
+# Summary rows of all studies saved in `dir` (e.g. "t3_cci_results"), as one table.
 collect_studies <- function(dir) {
-  files <- list.files(dir, pattern = "\\.rds$", full.names = TRUE)
+  dir <- results_path(dir)
+  files <-list.files(dir, pattern = "\\.rds$", full.names = TRUE)
   out <- do.call(rbind, lapply(files, function(f) readRDS(f)$summary))
   out[order(out$study, out$design, out$method, out$effect, out$n), ]
 }
@@ -452,9 +483,11 @@ for (n in c(200, 500, 1000)) for (e in c(0, 0.5))
                        n_tests = 100, seed = n + 10 * e, save_dir = "highdim_results_nonlinear")
 
 # ---- Resampling of X: rotation vs permutation vs conditional permutation ---------------------
-# Same seeds as the rotation studies above (seed = n + 10 * e), so the datasets are the same
-# and the results can be compared pair by pair with the existing *_cci_results /
-# *_nonlin_cci_results folders. Hypothesis to test: conditional permutation controls the
+# Same seeds as the rotation studies above (seed = n + 10 * e). Studies saved with
+# seed_scheme = "per_dataset" and the same seed, noise, design, n and effect use the same
+# datasets and can be compared pair by pair. Results saved before that scheme (no
+# seed_scheme in `settings`) share only the first dataset: compare their rates as
+# independent samples. Hypothesis to test: conditional permutation controls the
 # type I error less well than unconditional permutation in some settings.
 # Priority: effect = 0 (type I error) first; then effect = 0.5 (power).
 resampling_methods <- c("CCI_PLS_perm", "CCI_PLS_cond", "CCI_RF_perm", "CCI_RF_cond")
@@ -467,8 +500,9 @@ for (des in c("linear", "nonlinear"))
                             design = des,
                             save_dir = paste0(s, if (des == "nonlinear") "_nonlin", "_cci_resampling_results"))
 
-# conditional permutation with smaller groups (closer to the exact conditional null)
-# for (s in c("gaussian", "outlier")) for (n in c(500, 1000))
-#   resampling_noise[[s]](c("CCI_PLS_cond", "CCI_RF_cond"), effect = 0, n = n, n_tests = 100,
-#                         seed = n, design = "nonlinear", settings = list(group_size = 5),
-#                         save_dir = paste0(s, "_nonlin_cci_cond_g5_results"))
+# conditional permutation with a larger neighbourhood (default k_perm = 5)
+ for (s in c("gaussian", "outlier")) for (n in c(500, 1000))
+   resampling_noise[[s]](c("CCI_PLS_cond", "CCI_RF_cond"), effect = 0, n = n, n_tests = 100,
+                         seed = n, design = "nonlinear", settings = list(k_perm = 10),
+                         save_dir = paste0(s, "_nonlin_cci_cond_k10_results"))
+

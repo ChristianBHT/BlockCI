@@ -5,3 +5,4 @@
 ^Causal Discovery Matrices\.tex$
 ^inst/benchmarks$
 ^dev$
+^simulation_results$

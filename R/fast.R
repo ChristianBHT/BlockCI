@@ -4,7 +4,7 @@
 #' fitted on the real X with the same model fitted on a resampled X* (rotation by
 #' default) using the SAME train/test split, and repeats this for `nsplit` splits.
 #' The regression is chosen with `method`, as in [Block.CCI.test()]: `"SOPLS"`
-#' (default), `"PLS"`, `"ROSA"`, `"RF"` (multi-output random forest), `"XGB"` or a
+#' (default), `"PLS"`, `"ROSA"`, `"RF"` (multi-output random forest), `"XGB"`, `"KNN"` or a
 #' learner function.
 #'
 #' For split `k` and each test row `i`, `d_ki = l1_ki - l0_ki` is the change in
@@ -25,6 +25,8 @@
 #' with the same model with X* on the same rows.
 #'
 #' @inheritParams Block.CCI.test
+#' @param method regression method: `"SOPLS"` (default), `"PLS"`, `"ROSA"`, `"XGB"`,
+#'   `"RF"`, `"KNN"` (case-insensitive) or a learner function (see [cci_test_gen()]).
 #' @examples
 #' \dontrun{
 #' data <- sim_1(n = 500, p = 4)
@@ -54,7 +56,7 @@ Block.CCI.fast <- function(formula, data, method = "SOPLS",
                            p = 0.5, nsplit = 10, nrot = 1, ncomp = "auto", scale = TRUE,
                            max_ncomp = NULL, cv_segments = 5, method_args = list(),
                            correction = c("none", "nadeau-bengio"),
-                           group_size = 10, seed = NA, progress = TRUE,
+                           k_perm = 5, seed = NA, progress = TRUE,
                            reduce = c("none", "pca", "pls"), reduce_ncomp = "auto") {
   resampling <- match.arg(resampling)
   reduce <- match.arg(reduce)
@@ -66,7 +68,7 @@ Block.CCI.fast <- function(formula, data, method = "SOPLS",
   cc <- .canonical(formula, data)
   Vm <- if (is.null(cc$V)) NULL else do.call(cbind, cc$V)
   n <- nrow(cc$Y); n_tr <- floor(p * n); n_te <- n - n_tr
-  resample <- .make_resampler(cc$X, Vm, resampling, group_size)
+  resample <- .make_resampler(cc$X, Vm, resampling, k_perm)
   gen <- function(dat, split, yh0 = NULL)
     cci_test_gen(cc$formula, dat, method = learner, p = p, ncomp = ncomp, scale = scale,
                  max_ncomp = max_ncomp, cv_segments = cv_segments,

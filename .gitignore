@@ -3,3 +3,6 @@
 .RData
 *.Rcheck
 *.tar.gz
+
+# simulation output (kept locally, not in Git)
+simulation_results/

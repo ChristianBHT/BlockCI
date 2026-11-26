@@ -30,7 +30,7 @@ library(CausalBlocks)
 ```
 
 Required: `multiblock`, `pls`. Optional: `grf` (`method = "RF"`), `xgboost` >= 2.0
-(`method = "XGB"`), `energy` (`stat = "dcor"`).
+(`method = "XGB"`), `FNN` (`method = "KNN"`), `energy` (`stat = "dcor"`).
 
 ## The tests in short
 
@@ -45,7 +45,8 @@ conditioning block.
 | `Block.resid.test()` | Remove Z from X and from Y by regression; are the residual matrices still dependent? | permutation (RV, first canonical correlation, distance correlation) or a Gaussian approximation (weighted GCM) |
 
 The regression is chosen with `method`: `"PLS"`, `"SOPLS"`, `"ROSA"`, `"RF"`
-(multi-output random forest, grf) or `"XGB"` (multi-target XGBoost). In the residual
+(multi-output random forest, grf), `"XGB"` (multi-target XGBoost) or `"KNN"` (k
+nearest neighbours; new, not part of the simulation results below). In the residual
 test RF and XGB first remove the linear part of Z with PLS (`linear_first = TRUE`).
 Many conditioning variables can be reduced first with `reduce = "pca"` or `"pls"`.
 
@@ -176,6 +177,9 @@ explained by Z plus noise of variance 1. Noise types: Gaussian, t3, Laplace, ske
 Z), correlated columns. Power: `Y <- Y + 0.5 * X`. 100 datasets per cell, level 0.05:
 the Monte Carlo standard error of a rejection rate near 0.05 is about 0.02, so rates
 above about 0.09 are clearly too high. CCI tests: `nperm = 99`, RF with 500 trees.
+All results here predate two changes: the CCI tests used a training fraction
+`p = 0.75` (now 0.5), and conditional permutation, also the default of the residual
+tests with RV, was within k-means groups (now local kNN).
 Residual tests: 5 folds, `B = 199`.
 
 **Linear design, type I error** (median over the 8 noise types, worst in brackets)
@@ -228,7 +232,8 @@ the rotated X equals X.
 Permuting X breaks its relation to Z. Under the null the observed X still carries
 information about Z that the forest has not fully learned, while the permuted X does
 not, so the null distribution is shifted and the test rejects too often. Conditional
-permutation (within k-means groups of Z) did not help here. The remaining noise types
+permutation (then within k-means groups of Z; since replaced by a local kNN
+permutation, not yet studied) did not help here. The remaining noise types
 and the nonlinear design are running.
 
 **Time per test** (median, one test, all cores for RF): CCI with PLS 1-3 s, ROSA
@@ -242,22 +247,25 @@ High-dimensional nonlinear conditioning remains an open problem.
 
 ## Block CCI test: details
 
-`Block.CCI.test(Y ~ X | V, data, method = "SOPLS")` is a block version of the
+`Block.CCI.test(Y ~ X | V, data, method = "PLS")` is a block version of the
 Computational Conditional Independence (CCI) test, with the same structure as the CCI
 package.
 
 - **Statistic:** `T = RMSEP(Y ~ V + X) - RMSEP(Y ~ V)` on held-out data (a fraction
   `p` of the rows is used for training). Negative `T` means X improves prediction
   beyond V.
-- **Regression (`method`):** `"SOPLS"` (default, `multiblock::sopls`, each V block kept
-  as a separate block), `"PLS"` (`pls::plsr` on the cbind-ed blocks), `"ROSA"`
+- **Regression (`method`):** `"PLS"` (default, `pls::plsr` on the cbind-ed blocks),
+  `"SOPLS"` (`multiblock::sopls`, each V block kept as a separate block), `"ROSA"`
   (`multiblock::rosa`, every block kept separate), `"XGB"` (multi-target XGBoost,
-  experimental) or `"RF"` (multi-output random forest, `grf::multi_regression_forest`).
+  experimental), `"RF"` (multi-output random forest, `grf::multi_regression_forest`) or
+  `"KNN"` (the mean Y of the k nearest training rows, k chosen by inner CV or set with
+  `method_args = list(k = 10)`; Euclidean distance on standardised columns).
   Method-specific options go in `method_args`.
 - **Null distribution:** `nperm` Monte Carlo CV instances on a resampled X: rotation
   (`resampling = "rotation"`, default; keeps the linear relation between X and V),
-  permutation (`"permutation"`) or permutation within clusters of similar V
-  (`"conditional"`).
+  permutation (`"permutation"`) or the greedy local permutation of Runge (2018)
+  (`"conditional"`): each row gets the X of one of its `k_perm` (default 5) nearest
+  neighbours in V, using each neighbour once where possible.
 - **Components (SOPLS, PLS, ROSA):** chosen by inner cross-validation on the training
   rows (`ncomp = "auto"`) or given. For SOPLS `c(a_1, ..., a_k, b)`: components for
   each of the k V blocks, then b for X. For PLS and ROSA `c(a, b)`: components of
@@ -265,6 +273,22 @@ package.
 - **p-value:** share of null statistics at or below the observed one
   (`pvalue = "empirical"`), or from a normal fit to the null statistics
   (`pvalue = "parametric"`).
+- **Observed splits (`npval`, default 1):** the observed statistic depends on the
+  random train/test split. With `npval > 1` (a whole number up to `nperm`,
+  experimental) it is computed on `npval` splits, each is compared with the same null
+  statistics and the p-values are averaged. The p-value then depends less on the
+  split, but the average is not uniform under the null: in linear Gaussian
+  simulations with PLS, 2 or more made the test far too conservative and lowered its
+  power at level 0.05. Keep the default for testing. The simulation results above
+  were made with a single split.
+- **Cross-fitting (`crossfit = TRUE`, experimental, off by default):** the models are
+  fitted on each half of the rows and predict the other, one statistic is computed
+  from the errors of all rows, and every null draw is cross-fitted the same way
+  (about twice the fits). With linear Gaussian data and PLS (n = 500) it held the
+  level (0.039) and had more power than one 50/50 split (0.30 against 0.24 at effect
+  0.10, 0.68 against 0.57 at 0.15; a second run at 0.10 showed a smaller gain, 0.235
+  against 0.208, with level 0.038). With a random forest it rejected true nulls too
+  often (0.10-0.13), so do not use it with RF on the present evidence.
 
 ```r
 set.seed(1)
@@ -335,7 +359,8 @@ Block.resid.test(Y ~ X | Z1 + Z2, data, stat = "wgcm")     # weighted GCM
   in every run of a small test.
 - **Statistics:** `stat = "rv"` (RV coefficient), `"cc1"` (first canonical
   correlation), `"dcor"` (distance correlation), calibrated by permutation
-  (`perm = "conditional"`, default: within groups of rows with similar Z); or
+  (`perm = "conditional"`, default: the greedy local permutation among the `k_perm`
+  nearest neighbours in Z, see `permute_X_cond()`); or
   `"wgcm"`, the multivariate weighted generalised covariance measure with fixed weights
   (mWGCM.fix; Scheidegger, Hörrmann and Bühlmann 2022, JMLR 23, Appendix A.1): for every
   pair of residual columns and every weight `w_k(Z)` (the constant and

@@ -227,11 +227,34 @@
   list(res = M - r$pred, complexity = la$num.trees, lin_ncomp = r$lin_ncomp)
 }
 
+# Multi-output k nearest neighbour regression (see knn_regression.R) of M on
+# cbind(Z), by default after a linear PLS step (see .two_stage()): a mean over
+# neighbours is pulled towards the middle of the data and so leaves part of a linear
+# effect of Z in the residuals. Cross-fitted over the folds; targets are standardised
+# with the training rows. With k = "auto" k is chosen in every fit by 5-fold CV within
+# its training rows. With resid = "fitted" a row is among its own neighbours.
+# opts$args (optional): k ("auto" or a number) and k_grid.
+# complexity: the k used, averaged over the folds.
+.resid_knn <- function(M, Zl, folds, opts) {
+  Z <- as.matrix(do.call(cbind, Zl))
+  la <- .knn_args(opts$args)
+  used <- numeric(0)
+  nl_fit <- function(Tm, tr, te, Fm) .std_predict(Tm, tr, te, function(Ts) {
+    f <- .knn_fit_predict(Fm %||% Z, Ts, tr, te, k = la$k, grid = la$grid,
+                          scale = opts$scale)
+    used <<- c(used, f$k)
+    f$pred
+  })
+  r <- .two_stage(M, Z, folds, opts, nl_fit)
+  list(res = M - r$pred, complexity = mean(used), lin_ncomp = r$lin_ncomp)
+}
+
 # ---- registry -----------------------------------------------------------------
 # Methods available by name in Block.resid.test(method = ...). Add new ones here.
 .resid_methods <- list(
   PLS  = .resid_pls,
   ROSA = .resid_rosa,
   XGB  = .resid_xgb,
-  RF   = .resid_rf
+  RF   = .resid_rf,
+  KNN  = .resid_knn
 )

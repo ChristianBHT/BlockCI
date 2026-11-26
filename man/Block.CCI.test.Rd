@@ -11,18 +11,20 @@ Block.CCI.test(
   method = "PLS",
   resampling = c("rotation", "permutation", "conditional"),
   nperm = 160,
-  p = 0.75,
+  p = 0.5,
   ncomp = "auto",
   scale = TRUE,
   max_ncomp = NULL,
   cv_segments = 5,
   method_args = list(),
   pvalue = c("empirical", "parametric"),
-  group_size = 10,
+  k_perm = 5,
   seed = NA,
   progress = TRUE,
   reduce = c("none", "pca", "pls"),
-  reduce_ncomp = "auto"
+  reduce_ncomp = "auto",
+  npval = 1,
+  crossfit = FALSE
 )
 
 \method{print}{BlockCCI}(x, ...)
@@ -35,17 +37,17 @@ after the bar is its own V block.}
 \item{data}{named list of matrices (or a data.frame). Rows with missing values
 in any used variable are dropped.}
 
-\item{method}{regression method: \code{"SOPLS"} (default), \code{"PLS"}, \code{"ROSA"}, \code{"XGB"},
-\code{"RF"} (case-insensitive) or a learner function (see Details).}
+\item{method}{regression method: \code{"PLS"} (default), \code{"SOPLS"}, \code{"ROSA"}, \code{"XGB"},
+\code{"RF"}, \code{"KNN"} (case-insensitive) or a learner function (see Details).}
 
 \item{resampling}{resampling of X: \code{"rotation"} (default; linear adjustment for
 V, see \code{\link[=rotate_X]{rotate_X()}}), \code{"permutation"} (global row permutation) or
-\code{"conditional"} (permute rows of X within groups of rows with similar V, see
-\code{\link[=permute_X_cond]{permute_X_cond()}})}
+\code{"conditional"} (greedy local permutation: each row of X is replaced by the X
+of a row with similar V, see \code{\link[=permute_X_cond]{permute_X_cond()}})}
 
 \item{nperm}{number of null samples R}
 
-\item{p}{training fraction}
+\item{p}{training fraction (default 0.5)}
 
 \item{ncomp}{(\code{"SOPLS"}, \code{"PLS"}, \code{"ROSA"}) \code{"auto"} (chosen by inner CV as described
 above) or fixed numbers of components. For \code{"SOPLS"}: \code{c(a_1, ..., a_k, b)},
@@ -68,8 +70,10 @@ selection}
 the xgboost parameters, defaults \verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}).
 For \code{"RF"}: any arguments of \code{\link[grf:multi_regression_forest]{grf::multi_regression_forest()}}, e.g.
 \code{num.trees} (2000), \code{num.threads} (1; \code{NULL} uses all cores),
-\code{min.node.size}, \code{mtry}, \code{sample.fraction} or \code{honesty}. A learner function
-receives the list as \code{opts$args}.}
+\code{min.node.size}, \code{mtry}, \code{sample.fraction} or \code{honesty}. For \code{"KNN"}: \code{k}
+(\code{"auto"}, default, or one number of neighbours for both models) and \code{k_grid}
+(candidates for \code{"auto"}; default 3, 5, 7, 10, 15, 20, 30, 50, 75, 100). A
+learner function receives the list as \code{opts$args}.}
 
 \item{pvalue}{\code{"empirical"} (default): \verb{(#\{T* <= T_obs\} + 1) / (R + 1)}.
 \code{"parametric"}: assumes the null distribution is normal with the mean and sd
@@ -77,7 +81,8 @@ of the R null statistics and returns \code{pnorm(T_obs, mean, sd)}. This is not
 limited to a resolution of \code{1/(R + 1)}, but relies on the normal assumption.
 Both p-values are stored in the result as \code{p.empirical} and \code{p.parametric}.}
 
-\item{group_size}{rows per cluster for \code{resampling = "conditional"}}
+\item{k_perm}{neighbourhood size (the row itself included) for
+\code{resampling = "conditional"}, see \code{\link[=permute_X_cond]{permute_X_cond()}} (default 5)}
 
 \item{seed}{optional random seed}
 
@@ -97,6 +102,33 @@ Marchenko-Pastur noise edge \code{(1 + sqrt(p/n))^2} (at most 20; if none does, 
 components explaining 90 \% of the variance); for \code{"pls"} the number is chosen by
 cross-validation on the training rows (at most 10).}
 
+\item{npval}{number of observed statistics, each on its own random train/test
+split of the observed data; the p-value is the average of their \code{npval}
+p-values. A whole number from 1 to \code{nperm}; the default 1 is the test with a
+single observed split. \strong{Warning:} values above 1 are experimental. An average
+of p-values computed from the same data is not uniformly distributed under the
+null. In linear Gaussian simulations (PLS, rotation, \code{nperm = 99}, level 0.05)
+the type I error fell from about 0.04 with \code{npval = 1} to about 0.01 with 2 and
+0.001 or less with 5, and the power at that level fell by more than half
+already with 2. Nonlinear data and other learners have not been tested. A
+larger \code{npval} does make the p-value depend less on the random split (but not
+on the randomness of the null draws). Each extra one costs one more statistic,
+so the number of statistics grows by the factor
+\code{(nperm + npval) / (nperm + 1)}.}
+
+\item{crossfit}{(experimental, default \code{FALSE}) two-fold cross-fitting of the
+observed statistic \strong{and} of every null draw, see \code{\link[=cci_null_dist]{cci_null_dist()}}: the models
+are fitted on each half of the rows and predict the other, and one statistic is
+computed from the errors of all rows. Needs \code{p = 0.5} and \code{npval = 1}, and about
+twice the model fits. In simulations with linear Gaussian data (PLS, n = 500,
+rotation, \code{nperm = 99}, level 0.05) the type I error was 0.039 (single 50/50
+split: 0.045) and the power at effect 0.10 / 0.15 was 0.30 / 0.68 (single split:
+0.24 / 0.57). A second run on new data (effect 0 / 0.10) gave 0.038 and 0.235
+(single split: 0.047 and 0.208), so the power gain at 0.10 may be smaller than
+in the first run. \strong{Warning:} with a random forest (200 trees, n = 500) it rejected
+true nulls too often (0.13 with nonlinear relations, 0.10 with skewed noise;
+single split: 0.08 and 0.045). Other learners and settings have not been tested.}
+
 \item{x}{a \code{BlockCCI} object}
 
 \item{...}{unused}
@@ -104,8 +136,14 @@ cross-validation on the training rows (at most 10).}
 \value{
 object of class \code{c("BlockCCI", "htest")}: a list with \code{statistic} (T),
 \code{p.value}, \code{M0}, \code{M1}, \code{p.empirical}, \code{p.parametric}, \code{null.distribution},
-\code{method}, \code{resampling}, \code{complexity} (of M0 and M1 on the observed split, see
-\code{\link[=cci_test_gen]{cci_test_gen()}}) and the settings used. \code{\link[=plot]{plot()}} shows the null distribution.
+\code{method}, \code{resampling}, \code{complexity} (of M0 and M1, see \code{\link[=cci_test_gen]{cci_test_gen()}}) and
+the settings used, including \code{npval} and \code{crossfit} (with \code{crossfit = TRUE},
+\code{statistic}, \code{M0} and \code{M1} are the pooled values and \code{complexity} the mean over
+the two folds). \code{statistic}, \code{M0}, \code{M1}, \code{complexity},
+\code{p.empirical} and \code{p.parametric} are averages over the \code{npval} observed
+splits; the values of the single splits are in \code{T.splits},
+\code{p.empirical.splits} and \code{p.parametric.splits}. \code{\link[=plot]{plot()}} shows the null
+distribution.
 }
 \description{
 Tests whether the block Y is independent of the block X given the blocks V
@@ -123,7 +161,10 @@ X* (\code{\link[=cci_null_dist]{cci_null_dist()}}): rotation (default), permutat
 permutation of X, chosen with \code{resampling}.
 \item \strong{p-value:} left tail, the share of null statistics at or below the observed
 one (\code{pvalue = "empirical"}), or from a normal fit to the null statistics
-(\code{pvalue = "parametric"}).
+(\code{pvalue = "parametric"}). By default the observed statistic comes from one
+random train/test split. With \code{npval > 1} (experimental) it is computed on
+\code{npval} splits, each is compared with the same null statistics and the p-values
+are averaged.
 }
 
 The regression behind M0 (Y ~ V) and M1 (Y ~ V + X) is chosen with \code{method}:
@@ -138,6 +179,8 @@ block is kept separate and each component comes from the block that best
 explains the current Y residual. Components chosen by inner CV.
 \item \code{"XGB"}: multi-target XGBoost (experimental; needs xgboost >= 2.0).
 \item \code{"RF"}: multi-output random forest (\code{grf::multi_regression_forest}; needs grf).
+\item \code{"KNN"}: multi-output k nearest neighbour regression (needs FNN); k chosen by
+inner CV.
 \item a learner function with the interface described in \code{R/learners.R}. New methods
 can be made available by name by adding them to \code{.cci_methods} in that file.
 }
@@ -154,10 +197,14 @@ method and its options.
 \examples{
 \dontrun{
 data <- sim_1(n = 500, p = 4)
-Block.CCI.test(Y ~ X | Z1 + Z2, data, nperm = 99)                  # H0 true, SO-PLS
+Block.CCI.test(Y ~ X | Z1 + Z2, data, nperm = 99)                  # H0 true, PLS
 Block.CCI.test(Y ~ X | Z1, data, nperm = 99, method = "PLS")      # H0 false
+Block.CCI.test(Y ~ X | Z1 + Z2, data, nperm = 99, crossfit = TRUE) # experimental
 Block.CCI.test(Y ~ X | Z1 + Z2, data, nperm = 99, method = "RF",
                method_args = list(num.trees = 500, num.threads = NULL))
+Block.CCI.test(Y ~ X | Z1 + Z2, data, nperm = 99, method = "KNN")
+Block.CCI.test(Y ~ X | Z1 + Z2, data, nperm = 99, method = "KNN",
+               method_args = list(k = 10), resampling = "conditional")
 Block.CCI.test(Y ~ X | Z1 + Z2, data, nperm = 49, method = "XGB",
                method_args = list(nrounds = 300, params = list(max_depth = 4)))
 }

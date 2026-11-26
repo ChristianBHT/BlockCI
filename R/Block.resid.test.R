@@ -13,8 +13,10 @@
 #'   the Z blocks kept as separate blocks.
 #' * `"XGB"`: multi-target XGBoost (needs xgboost >= 2.0).
 #' * `"RF"`: multi-output random forest (`grf::multi_regression_forest`, needs grf).
+#' * `"KNN"`: multi-output k nearest neighbour regression (needs FNN), k chosen by
+#'   cross-validation within the training rows of every fold.
 #'
-#' For `"XGB"` and `"RF"` the linear part of the effect of Z is removed first
+#' For `"XGB"`, `"RF"` and `"KNN"` the linear part of the effect of Z is removed first
 #' (`linear_first = TRUE`, default): in each fold a PLS regression of the target on
 #' Z is fitted on the training rows, the tree learner is fitted on the training
 #' residuals of that PLS fit, and the held-out rows are predicted by the sum of the
@@ -33,8 +35,8 @@
 #' learner may not find the few directions of Z that matter. `reduce = "pca"`
 #' replaces the Z blocks by their principal component scores (one block; fitted on
 #' all rows, which is allowed since PCA does not use X or Y) for the regression, the
-#' conditional permutation and the wGCM weights. `reduce = "pls"` (`"XGB"` and `"RF"`
-#' only) feeds the tree learner with the PLS scores of the linear step of each fold
+#' conditional permutation and the wGCM weights. `reduce = "pls"` (`"XGB"`, `"RF"` and
+#' `"KNN"` only) feeds the tree learner with the PLS scores of the linear step of each fold
 #' (fitted on the training rows, separately for X and Y) instead of Z itself; the
 #' linear step then removes the linear part as before. For `"PLS"` and `"ROSA"`,
 #' which already work on a few components, `reduce = "pls"` is ignored.
@@ -53,7 +55,7 @@
 #' which an unweighted covariance misses. Under the null the vector of `T_jlk` is
 #' approximately normal with the correlation matrix of the weighted products; the
 #' p-value is the share of `B` draws of `max |N(0, Sigma_hat)|` that reach the
-#' observed maximum. `perm` and `group_size` are not used. There are
+#' observed maximum. `perm` and `k_perm` are not used. There are
 #' `ncol(X) * ncol(Y) * (k0 * ncol(Z) + 1)` statistics; time and memory grow with
 #' that number times n.
 #'
@@ -67,7 +69,7 @@
 #' @param data named list of matrices (or a data.frame) holding the variables in
 #'   `formula`. Rows with missing values are dropped.
 #' @param method regression used to remove Z: `"PLS"` (default), `"ROSA"`, `"XGB"`,
-#'   `"RF"` (case-insensitive) or a residual learner function (see Details).
+#'   `"RF"`, `"KNN"` (case-insensitive) or a residual learner function (see Details).
 #' @param stat dependence statistic between the residual matrices: `"rv"` (RV
 #'   coefficient), `"cc1"` (first canonical correlation), `"dcor"` (distance
 #'   correlation; needs the energy package) or `"wgcm"` (weighted generalised
@@ -75,20 +77,21 @@
 #'   by permutation, `"wgcm"` by a Gaussian approximation.
 #' @param resid `"cv"` (cross-validated / cross-fitted residuals, recommended) or
 #'   `"fitted"` (in-sample residuals).
-#' @param perm `"conditional"` (permute residual rows within groups of rows with
-#'   similar Z) or `"simple"` (permute all rows).
+#' @param perm `"conditional"` (greedy local permutation of the residual rows: each
+#'   row gets the Y residual of a row with similar Z, see [permute_X_cond()]) or `"simple"` (permute all rows).
 #' @param B number of permutations (for `stat = "wgcm"`: number of draws from the
 #'   Gaussian approximation).
-#' @param group_size desired group size for `perm = "conditional"`.
+#' @param k_perm neighbourhood size (the row itself included) for
+#'   `perm = "conditional"` (default 5).
 #' @param k0 (`stat = "wgcm"`) number of quantile-based weight functions per column
 #'   of Z (default 7, as in Scheidegger et al. 2022).
 #' @param nfolds number of folds for `resid = "cv"` and for choosing the number of
 #'   components.
 #' @param ncomp number of PLS or ROSA components, or `"auto"` (chosen by CV,
-#'   separately for X and Y). Also used by the linear step of `"XGB"` and `"RF"`.
+#'   separately for X and Y). Also used by the linear step of `"XGB"`, `"RF"` and `"KNN"`.
 #' @param max_ncomp upper limit for `ncomp` when `ncomp = "auto"`.
 #' @param scale scale the Z variables in the PLS / ROSA regression.
-#' @param linear_first (`"XGB"`, `"RF"`) remove the linear part of Z with PLS before
+#' @param linear_first (`"XGB"`, `"RF"`, `"KNN"`) remove the linear part of Z with PLS before
 #'   the tree learner (default `TRUE`); ignored for `"PLS"` and `"ROSA"`.
 #' @param reduce dimension reduction of Z before the regression: `"none"` (default),
 #'   `"pca"` or `"pls"` (see Details).
@@ -96,7 +99,9 @@
 #'   keeps the components above the Marchenko-Pastur noise edge (see
 #'   [cci_test_gen()]); for `"pls"`, the number of components of the linear step
 #'   (chosen by CV with `ncomp = "auto"`).
-#' @param method_args named list of method-specific options. For `"XGB"`: `nrounds`
+#' @param method_args named list of method-specific options. For `"KNN"`: `k`
+#'   (`"auto"`, default, or a number of neighbours) and `k_grid` (candidates for
+#'   `"auto"`). For `"XGB"`: `nrounds`
 #'   (number of boosting rounds, 1000) and `params` (list merged into
 #'   `max_depth = 3, eta = 0.1, tree_method = "hist",
 #'   multi_strategy = "multi_output_tree", nthread = 1`). For `"RF"`: `oob` (`TRUE`)
@@ -121,6 +126,9 @@
 #' Block.resid.test(Y ~ X | Z1 + Z2, data, method = "XGB", B = 199,
 #'                  method_args = list(nrounds = 300))
 #' Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", linear_first = FALSE)  # RF alone
+#' Block.resid.test(Y ~ X | Z1 + Z2, data, method = "KNN", B = 199)         # PLS, then KNN
+#' Block.resid.test(Y ~ X | Z1 + Z2, data, method = "KNN", stat = "wgcm",
+#'                  method_args = list(k = 20))
 #' Block.resid.test(Y ~ X | Z1 + Z2, data, stat = "wgcm")                # weighted GCM
 #' # many conditioning variables: RF on the PLS scores, or PLS on PCA scores
 #' Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", reduce = "pls")
@@ -131,7 +139,7 @@ Block.resid.test <- function(formula, data, method = "PLS",
                              stat = c("rv", "cc1", "dcor", "wgcm"),
                              resid = c("cv", "fitted"),
                              perm = c("conditional", "simple"),
-                             B = 999, group_size = 10, nfolds = 10,
+                             B = 999, k_perm = 5, nfolds = 10,
                              ncomp = "auto", max_ncomp = 10, scale = TRUE,
                              linear_first = TRUE, k0 = 7, method_args = list(), seed = NA,
                              reduce = c("none", "pca", "pls"), reduce_ncomp = "auto") {
@@ -163,10 +171,10 @@ Block.resid.test <- function(formula, data, method = "PLS",
   rx <- learner(cc$X, cc$V, folds, opts)
   ry <- learner(cc$Y, cc$V, folds, opts)
   Z <- do.call(cbind, cc$V)
-  res <- .resid_perm_test(rx$res, ry$res, Z, stat, perm, B, group_size, k0 = k0)
+  res <- .resid_perm_test(rx$res, ry$res, Z, stat, perm, B, k_perm, k0 = k0)
   calib <- if (stat == "wgcm") "Gaussian approximation" else paste(perm, "permutation")
 
-  two_step <- linear_first && method_name %in% c("XGB", "RF")
+  two_step <- linear_first && method_name %in% c("XGB", "RF", "KNN")
   reg_label <- if (two_step) paste0("PLS + ", method_name) else method_name
   if (reduce == "pca") reg_label <- paste0(reg_label, " on ", n_reduced, " PCA scores of Z")
   if (reduce == "pls") reg_label <- paste0(reg_label, " on PLS scores of Z")

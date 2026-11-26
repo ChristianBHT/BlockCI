@@ -22,6 +22,7 @@ Imports:
     utils,
     pls
 Suggests:
+    FNN,
     grf,
     testthat (>= 3.0.0),
     xgboost (>= 2.0.0)

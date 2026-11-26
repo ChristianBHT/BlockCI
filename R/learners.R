@@ -248,6 +248,26 @@
        a = if (skip0) NA else la$num.trees, b = la$num.trees)
 }
 
+# Multi-output k nearest neighbour regression (see knn_regression.R). M0: Y ~ V; M1:
+# Y ~ V + X (cbind-ed, features standardised with the training rows if scale = TRUE).
+# opts$args (optional): k ("auto": chosen for each model by cross-validation within
+#   the training rows with cv_segments segments; or one number used for both models)
+#   and k_grid (candidates for "auto").
+.learner_knn <- function(Ys, X, Vl, train, test, opts) {
+  la <- .knn_args(opts$args)
+  fit_pred <- function(Fm)
+    .knn_fit_predict(Fm, Ys, train, test, k = la$k, grid = la$grid,
+                     scale = opts$scale %||% TRUE, segments = opts$cv_segments %||% 5)
+  if (is.null(Vl)) {   # unconditional test: M0 is the training mean (0 on the Ys scale)
+    f1 <- fit_pred(X)
+    return(list(yh0 = matrix(0, length(test), ncol(Ys)), yh1 = f1$pred, a = 0, b = f1$k))
+  }
+  Vm <- do.call(cbind, Vl)
+  f0 <- if (isFALSE(opts$fit_m0)) NULL else fit_pred(Vm)
+  f1 <- fit_pred(cbind(Vm, X))
+  list(yh0 = f0$pred, yh1 = f1$pred, a = f0$k %||% NA_integer_, b = f1$k)
+}
+
 # ---- registry -----------------------------------------------------------------
 # Methods available by name in `method`. Add new learners here.
 .cci_methods <- list(
@@ -255,7 +275,8 @@
   PLS   = .learner_pls,
   ROSA  = .learner_rosa,
   XGB   = .learner_xgboost,
-  RF    = .learner_rf
+  RF    = .learner_rf,
+  KNN   = .learner_knn
 )
 
 # Look up a learner: `method` is a name in `registry` (case-insensitive) or a

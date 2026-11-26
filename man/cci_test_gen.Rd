@@ -7,8 +7,8 @@
 cci_test_gen(
   formula,
   data,
-  method = "SOPLS",
-  p = 0.75,
+  method = "PLS",
+  p = 0.5,
   ncomp = "auto",
   scale = TRUE,
   max_ncomp = NULL,
@@ -29,10 +29,10 @@ after the bar is its own V block.}
 \item{data}{named list of matrices (or a data.frame). Rows with missing values
 in any used variable are dropped.}
 
-\item{method}{regression method: \code{"SOPLS"} (default), \code{"PLS"}, \code{"ROSA"}, \code{"XGB"},
-\code{"RF"} (case-insensitive) or a learner function (see Details).}
+\item{method}{regression method: \code{"PLS"} (default), \code{"SOPLS"}, \code{"ROSA"}, \code{"XGB"},
+\code{"RF"}, \code{"KNN"} (case-insensitive) or a learner function (see Details).}
 
-\item{p}{training fraction}
+\item{p}{training fraction (default 0.5)}
 
 \item{ncomp}{(\code{"SOPLS"}, \code{"PLS"}, \code{"ROSA"}) \code{"auto"} (chosen by inner CV as described
 above) or fixed numbers of components. For \code{"SOPLS"}: \code{c(a_1, ..., a_k, b)},
@@ -55,8 +55,10 @@ selection}
 the xgboost parameters, defaults \verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}).
 For \code{"RF"}: any arguments of \code{\link[grf:multi_regression_forest]{grf::multi_regression_forest()}}, e.g.
 \code{num.trees} (2000), \code{num.threads} (1; \code{NULL} uses all cores),
-\code{min.node.size}, \code{mtry}, \code{sample.fraction} or \code{honesty}. A learner function
-receives the list as \code{opts$args}.}
+\code{min.node.size}, \code{mtry}, \code{sample.fraction} or \code{honesty}. For \code{"KNN"}: \code{k}
+(\code{"auto"}, default, or one number of neighbours for both models) and \code{k_grid}
+(candidates for \code{"auto"}; default 3, 5, 7, 10, 15, 20, 30, 50, 75, 100). A
+learner function receives the list as \code{opts$args}.}
 
 \item{split}{training rows (optional; if \code{NULL} a random split of \code{floor(p * n)}
 rows is drawn). \code{\link[=Block.CCI.fast]{Block.CCI.fast()}} uses it to fit X and X* on the same split.}
@@ -87,7 +89,7 @@ named vector \verb{M0, M1, T = M1 - M0, a, b} (RMSEP scale). \code{a} and \code{
 the complexities of M0 and M1: for \code{"SOPLS"} the total number of V components
 and the number of added X components; for \code{"PLS"} and \code{"ROSA"} the components
 of Y ~ V and of Y ~ V + X; for \code{"XGB"} the number of boosting rounds and for \code{"RF"} the
-number of trees (\code{a = 0} without V). With \code{losses = TRUE}: a list with \code{stats}
+number of trees, and for \code{"KNN"} the number of neighbours k (\code{a = 0} without V). With \code{losses = TRUE}: a list with \code{stats}
 (that vector), \code{test} (the test rows), \code{l0} and \code{l1} (per-test-row squared
 errors, summed over the Y columns, of M0 and M1) and \code{yh0} (the test-row
 predictions of M0, standardised Y scale).
@@ -104,15 +106,15 @@ p-value.
 \details{
 The regression is chosen with \code{method}:
 \itemize{
-\item \code{"SOPLS"} (default): both models come from one \code{multiblock::sopls} fit (M0: the
+\item \code{"PLS"} (default): ordinary PLS regression (\code{pls::plsr}) of Y on cbind(V) and
+on cbind(V, X), so the block structure is not used. With \code{ncomp = "auto"} the
+number of components of each model is chosen by inner CV.
+\item \code{"SOPLS"}: both models come from one \code{multiblock::sopls} fit (M0: the
 V components; M1: after adding b components of X, fitted sequentially on the
 V-orthogonalised Y and X). Each V block is a separate SO-PLS block. With
 \code{ncomp = "auto"} each V block gets one component and the number of X
 components b is chosen by inner CV; b = 0 means X is not selected, so
 M1 = M0 and T = 0.
-\item \code{"PLS"}: ordinary PLS regression (\code{pls::plsr}) of Y on cbind(V) and on
-cbind(V, X), so the block structure is not used. With \code{ncomp = "auto"} the
-number of components of each model is chosen by inner CV.
 \item \code{"ROSA"}: response-oriented sequential alternation (\code{multiblock::rosa}) of Y on
 the V blocks and on the V blocks plus X, every block kept separate (each
 component comes from the block that best explains the current Y residual).
@@ -125,6 +127,12 @@ the training rows (no early stopping).
 \item \code{"RF"}: two multi-output random forests (\code{grf::multi_regression_forest}, needs
 the grf package), each grown on all the training rows with splits that reduce
 the error summed over the Y columns.
+\item \code{"KNN"}: multi-output k nearest neighbour regression (needs FNN) of Y on
+cbind(V) and on cbind(V, X): the prediction is the mean Y of the k nearest
+training rows (Euclidean distance, features standardised with the training rows
+if \code{scale = TRUE}). k is chosen for each model by cross-validation within the
+training rows (\code{cv_segments} segments), or fixed with \code{method_args}. All columns
+count equally in the distance, so many uninformative columns weaken it.
 \item a learner function: any function with the interface described in
 \code{R/learners.R}, \verb{function(Ys, X, Vl, train, test, opts)} returning
 \code{list(yh0, yh1, a, b)}. To make a new method available by name, add it to

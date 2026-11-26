@@ -10,15 +10,15 @@
 #'
 #' The regression is chosen with `method`:
 #'
-#' * `"SOPLS"` (default): both models come from one `multiblock::sopls` fit (M0: the
+#' * `"PLS"` (default): ordinary PLS regression (`pls::plsr`) of Y on cbind(V) and
+#'   on cbind(V, X), so the block structure is not used. With `ncomp = "auto"` the
+#'   number of components of each model is chosen by inner CV.
+#' * `"SOPLS"`: both models come from one `multiblock::sopls` fit (M0: the
 #'   V components; M1: after adding b components of X, fitted sequentially on the
 #'   V-orthogonalised Y and X). Each V block is a separate SO-PLS block. With
 #'   `ncomp = "auto"` each V block gets one component and the number of X
 #'   components b is chosen by inner CV; b = 0 means X is not selected, so
 #'   M1 = M0 and T = 0.
-#' * `"PLS"`: ordinary PLS regression (`pls::plsr`) of Y on cbind(V) and on
-#'   cbind(V, X), so the block structure is not used. With `ncomp = "auto"` the
-#'   number of components of each model is chosen by inner CV.
 #' * `"ROSA"`: response-oriented sequential alternation (`multiblock::rosa`) of Y on
 #'   the V blocks and on the V blocks plus X, every block kept separate (each
 #'   component comes from the block that best explains the current Y residual).
@@ -31,6 +31,12 @@
 #' * `"RF"`: two multi-output random forests (`grf::multi_regression_forest`, needs
 #'   the grf package), each grown on all the training rows with splits that reduce
 #'   the error summed over the Y columns.
+#' * `"KNN"`: multi-output k nearest neighbour regression (needs FNN) of Y on
+#'   cbind(V) and on cbind(V, X): the prediction is the mean Y of the k nearest
+#'   training rows (Euclidean distance, features standardised with the training rows
+#'   if `scale = TRUE`). k is chosen for each model by cross-validation within the
+#'   training rows (`cv_segments` segments), or fixed with `method_args`. All columns
+#'   count equally in the distance, so many uninformative columns weaken it.
 #' * a learner function: any function with the interface described in
 #'   `R/learners.R`, `function(Ys, X, Vl, train, test, opts)` returning
 #'   `list(yh0, yh1, a, b)`. To make a new method available by name, add it to
@@ -45,9 +51,9 @@
 #'   after the bar is its own V block.
 #' @param data named list of matrices (or a data.frame). Rows with missing values
 #'   in any used variable are dropped.
-#' @param method regression method: `"SOPLS"` (default), `"PLS"`, `"ROSA"`, `"XGB"`,
-#'   `"RF"` (case-insensitive) or a learner function (see Details).
-#' @param p training fraction
+#' @param method regression method: `"PLS"` (default), `"SOPLS"`, `"ROSA"`, `"XGB"`,
+#'   `"RF"`, `"KNN"` (case-insensitive) or a learner function (see Details).
+#' @param p training fraction (default 0.5)
 #' @param ncomp (`"SOPLS"`, `"PLS"`, `"ROSA"`) `"auto"` (chosen by inner CV as described
 #'   above) or fixed numbers of components. For `"SOPLS"`: `c(a_1, ..., a_k, b)`,
 #'   the components for each of the k V blocks, then the components added from X
@@ -66,8 +72,10 @@
 #'   tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1`).
 #'   For `"RF"`: any arguments of [grf::multi_regression_forest()], e.g.
 #'   `num.trees` (2000), `num.threads` (1; `NULL` uses all cores),
-#'   `min.node.size`, `mtry`, `sample.fraction` or `honesty`. A learner function
-#'   receives the list as `opts$args`.
+#'   `min.node.size`, `mtry`, `sample.fraction` or `honesty`. For `"KNN"`: `k`
+#'   (`"auto"`, default, or one number of neighbours for both models) and `k_grid`
+#'   (candidates for `"auto"`; default 3, 5, 7, 10, 15, 20, 30, 50, 75, 100). A
+#'   learner function receives the list as `opts$args`.
 #' @param split training rows (optional; if `NULL` a random split of `floor(p * n)`
 #'   rows is drawn). [Block.CCI.fast()] uses it to fit X and X* on the same split.
 #' @param reduce dimension reduction of the conditioning blocks before the
@@ -91,12 +99,12 @@
 #'   the complexities of M0 and M1: for `"SOPLS"` the total number of V components
 #'   and the number of added X components; for `"PLS"` and `"ROSA"` the components
 #'   of Y ~ V and of Y ~ V + X; for `"XGB"` the number of boosting rounds and for `"RF"` the
-#'   number of trees (`a = 0` without V). With `losses = TRUE`: a list with `stats`
+#'   number of trees, and for `"KNN"` the number of neighbours k (`a = 0` without V). With `losses = TRUE`: a list with `stats`
 #'   (that vector), `test` (the test rows), `l0` and `l1` (per-test-row squared
 #'   errors, summed over the Y columns, of M0 and M1) and `yh0` (the test-row
 #'   predictions of M0, standardised Y scale).
 #' @export
-cci_test_gen <- function(formula, data, method = "SOPLS", p = 0.75, ncomp = "auto",
+cci_test_gen <- function(formula, data, method = "PLS", p = 0.5, ncomp = "auto",
                          scale = TRUE, max_ncomp = NULL, cv_segments = 5,
                          method_args = list(), split = NULL, losses = FALSE,
                          yh0 = NULL, reduce = c("none", "pca", "pls"), reduce_ncomp = "auto") {
@@ -137,4 +145,31 @@ cci_test_gen <- function(formula, data, method = "SOPLS", p = 0.75, ncomp = "aut
   list(stats = out, test = test,
        l0 = rowSums((Yt - fit$yh0)^2), l1 = rowSums((Yt - fit$yh1)^2),
        yh0 = fit$yh0)
+}
+
+# Two-fold cross-fitted version of the statistic (crossfit = TRUE in Block.CCI.test()
+# and cci_null_dist()). The rows are split at random into two halves; M0 and M1 are
+# fitted on each half and predict the other (everything, tuning and standardisation
+# included, uses the fitting half only, as in cci_test_gen()). The squared errors of
+# all rows are pooled into ONE RMSEP for each model. With an odd number of rows the
+# halves differ by one row. Takes the arguments of cci_test_gen() through `...`
+# (`p` is accepted so that both can be called alike; the halves are 50/50). Returns the
+# same vector as cci_test_gen(): M0, M1, T, and a, b averaged over the two folds.
+.cci_crossfit <- function(formula, data, ..., p = 0.5) {
+  cc <- .canonical(formula, data)            # incomplete rows are dropped before halving
+  n <- nrow(cc$Y)
+  half <- sample.int(n, n %/% 2)
+  folds <- lapply(list(half, setdiff(seq_len(n), half)), function(train)
+    cci_test_gen(cc$formula, cc$data, ..., split = train, losses = TRUE))
+  pooled <- function(loss)
+    sqrt(sum(vapply(folds, function(f) sum(f[[loss]]), 0)) / (n * ncol(cc$Y)))
+  M0 <- pooled("l0"); M1 <- pooled("l1")
+  complexity <- rowMeans(vapply(folds, function(f) f$stats[c("a", "b")], numeric(2)))
+  c(M0 = M0, M1 = M1, T = M1 - M0, complexity)
+}
+
+.check_crossfit <- function(crossfit, p) {
+  if (!isTRUE(crossfit) && !isFALSE(crossfit)) stop("`crossfit` must be TRUE or FALSE")
+  if (crossfit && !isTRUE(all.equal(p, 0.5)))
+    stop("crossfit = TRUE uses two halves of the rows: `p` must be 0.5")
 }

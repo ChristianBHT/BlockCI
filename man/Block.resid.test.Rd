@@ -12,7 +12,7 @@ Block.resid.test(
   resid = c("cv", "fitted"),
   perm = c("conditional", "simple"),
   B = 999,
-  group_size = 10,
+  k_perm = 5,
   nfolds = 10,
   ncomp = "auto",
   max_ncomp = 10,
@@ -33,7 +33,7 @@ be given after the bar, e.g. \code{Y ~ X | Z1 + Z2}.}
 \code{formula}. Rows with missing values are dropped.}
 
 \item{method}{regression used to remove Z: \code{"PLS"} (default), \code{"ROSA"}, \code{"XGB"},
-\code{"RF"} (case-insensitive) or a residual learner function (see Details).}
+\code{"RF"}, \code{"KNN"} (case-insensitive) or a residual learner function (see Details).}
 
 \item{stat}{dependence statistic between the residual matrices: \code{"rv"} (RV
 coefficient), \code{"cc1"} (first canonical correlation), \code{"dcor"} (distance
@@ -44,31 +44,34 @@ by permutation, \code{"wgcm"} by a Gaussian approximation.}
 \item{resid}{\code{"cv"} (cross-validated / cross-fitted residuals, recommended) or
 \code{"fitted"} (in-sample residuals).}
 
-\item{perm}{\code{"conditional"} (permute residual rows within groups of rows with
-similar Z) or \code{"simple"} (permute all rows).}
+\item{perm}{\code{"conditional"} (greedy local permutation of the residual rows: each
+row gets the Y residual of a row with similar Z, see \code{\link[=permute_X_cond]{permute_X_cond()}}) or \code{"simple"} (permute all rows).}
 
 \item{B}{number of permutations (for \code{stat = "wgcm"}: number of draws from the
 Gaussian approximation).}
 
-\item{group_size}{desired group size for \code{perm = "conditional"}.}
+\item{k_perm}{neighbourhood size (the row itself included) for
+\code{perm = "conditional"} (default 5).}
 
 \item{nfolds}{number of folds for \code{resid = "cv"} and for choosing the number of
 components.}
 
 \item{ncomp}{number of PLS or ROSA components, or \code{"auto"} (chosen by CV,
-separately for X and Y). Also used by the linear step of \code{"XGB"} and \code{"RF"}.}
+separately for X and Y). Also used by the linear step of \code{"XGB"}, \code{"RF"} and \code{"KNN"}.}
 
 \item{max_ncomp}{upper limit for \code{ncomp} when \code{ncomp = "auto"}.}
 
 \item{scale}{scale the Z variables in the PLS / ROSA regression.}
 
-\item{linear_first}{(\code{"XGB"}, \code{"RF"}) remove the linear part of Z with PLS before
+\item{linear_first}{(\code{"XGB"}, \code{"RF"}, \code{"KNN"}) remove the linear part of Z with PLS before
 the tree learner (default \code{TRUE}); ignored for \code{"PLS"} and \code{"ROSA"}.}
 
 \item{k0}{(\code{stat = "wgcm"}) number of quantile-based weight functions per column
 of Z (default 7, as in Scheidegger et al. 2022).}
 
-\item{method_args}{named list of method-specific options. For \code{"XGB"}: \code{nrounds}
+\item{method_args}{named list of method-specific options. For \code{"KNN"}: \code{k}
+(\code{"auto"}, default, or a number of neighbours) and \code{k_grid} (candidates for
+\code{"auto"}). For \code{"XGB"}: \code{nrounds}
 (number of boosting rounds, 1000) and \code{params} (list merged into
 \verb{max_depth = 3, eta = 0.1, tree_method = "hist", multi_strategy = "multi_output_tree", nthread = 1}). For \code{"RF"}: \code{oob} (\code{TRUE})
 and any arguments of \code{\link[grf:multi_regression_forest]{grf::multi_regression_forest()}}, e.g. \code{num.trees} (2000)
@@ -109,9 +112,11 @@ The regression is chosen with \code{method}:
 the Z blocks kept as separate blocks.
 \item \code{"XGB"}: multi-target XGBoost (needs xgboost >= 2.0).
 \item \code{"RF"}: multi-output random forest (\code{grf::multi_regression_forest}, needs grf).
+\item \code{"KNN"}: multi-output k nearest neighbour regression (needs FNN), k chosen by
+cross-validation within the training rows of every fold.
 }
 
-For \code{"XGB"} and \code{"RF"} the linear part of the effect of Z is removed first
+For \code{"XGB"}, \code{"RF"} and \code{"KNN"} the linear part of the effect of Z is removed first
 (\code{linear_first = TRUE}, default): in each fold a PLS regression of the target on
 Z is fitted on the training rows, the tree learner is fitted on the training
 residuals of that PLS fit, and the held-out rows are predicted by the sum of the
@@ -132,8 +137,8 @@ to \code{.resid_methods} in that file.
 learner may not find the few directions of Z that matter. \code{reduce = "pca"}
 replaces the Z blocks by their principal component scores (one block; fitted on
 all rows, which is allowed since PCA does not use X or Y) for the regression, the
-conditional permutation and the wGCM weights. \code{reduce = "pls"} (\code{"XGB"} and \code{"RF"}
-only) feeds the tree learner with the PLS scores of the linear step of each fold
+conditional permutation and the wGCM weights. \code{reduce = "pls"} (\code{"XGB"}, \code{"RF"} and
+\code{"KNN"} only) feeds the tree learner with the PLS scores of the linear step of each fold
 (fitted on the training rows, separately for X and Y) instead of Z itself; the
 linear step then removes the linear part as before. For \code{"PLS"} and \code{"ROSA"},
 which already work on a few components, \code{reduce = "pls"} is ignored.
@@ -152,7 +157,7 @@ detect conditional dependence that changes sign across Z and averages to zero,
 which an unweighted covariance misses. Under the null the vector of \code{T_jlk} is
 approximately normal with the correlation matrix of the weighted products; the
 p-value is the share of \code{B} draws of \verb{max |N(0, Sigma_hat)|} that reach the
-observed maximum. \code{perm} and \code{group_size} are not used. There are
+observed maximum. \code{perm} and \code{k_perm} are not used. There are
 \code{ncol(X) * ncol(Y) * (k0 * ncol(Z) + 1)} statistics; time and memory grow with
 that number times n.
 
@@ -171,6 +176,9 @@ Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", B = 199,   # PLS, then RF
 Block.resid.test(Y ~ X | Z1 + Z2, data, method = "XGB", B = 199,
                  method_args = list(nrounds = 300))
 Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", linear_first = FALSE)  # RF alone
+Block.resid.test(Y ~ X | Z1 + Z2, data, method = "KNN", B = 199)         # PLS, then KNN
+Block.resid.test(Y ~ X | Z1 + Z2, data, method = "KNN", stat = "wgcm",
+                 method_args = list(k = 20))
 Block.resid.test(Y ~ X | Z1 + Z2, data, stat = "wgcm")                # weighted GCM
 # many conditioning variables: RF on the PLS scores, or PLS on PCA scores
 Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", reduce = "pls")
