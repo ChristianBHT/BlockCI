@@ -347,8 +347,13 @@ Block.resid.test(Y ~ X | Z1 + Z2, data, method = "ROSA")   # ROSA, Z blocks kept
 Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF",     # PLS, then multi-output random forest
                  method_args = list(num.trees = 1000, num.threads = NULL))
 Block.resid.test(Y ~ X | Z1 + Z2, data, stat = "wgcm")     # weighted GCM
+Block.resid.test(Y ~ X | Z1 + Z2, data, pvalue = "parametric")
 ```
 
+- **P-values** (`"rv"`, `"cc1"`, `"dcor"`): the result holds `p.empirical` and
+  `p.parametric`; `pvalue` chooses which one is `p.value` (default `"empirical"`). The
+  parametric one is the right tail of a Pearson type III distribution (shifted gamma)
+  fitted to the permutation statistics. `"wgcm"` has one p-value only.
 - **Residuals:** with `resid = "cv"` (default) every row's residual comes from a model
   that did not use that row (`nfolds` folds, shared by the X and the Y regression). PLS
   and ROSA choose the number of components by the CV error over the same folds.

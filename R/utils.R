@@ -119,6 +119,22 @@ rmsep <- function(y, yhat) sqrt(mean((y - yhat)^2))
   stats::pnorm(Tobs, mean = mean(T0), sd = s)
 }
 
+# Right-tail p-value from a Pearson type III distribution (a shifted gamma) with the
+# mean, sd and skewness of T0. For the permutation null of the residual statistics,
+# which is skewed to the right: there a normal fit gives p-values that are too small
+# (Josse, Pages and Husson 2008 use Pearson III for the RV coefficient, with exact
+# permutation moments; here the moments are those of the draws). Without positive
+# skewness the normal distribution is used.
+.right_tail_p <- function(Tobs, T0) {
+  m <- mean(T0)
+  s <- stats::sd(T0)
+  if (!is.finite(s) || s == 0) return(NA_real_)
+  g <- mean((T0 - m)^3) / mean((T0 - m)^2)^1.5
+  if (g < 1e-3) return(stats::pnorm(Tobs, m, s, lower.tail = FALSE))
+  shape <- 4 / g^2
+  stats::pgamma(shape + sqrt(shape) * (Tobs - m) / s, shape = shape, lower.tail = FALSE)
+}
+
 
 
 # ---- shared pieces for residual-based tests ----------------------------------
@@ -157,7 +173,8 @@ rmsep <- function(y, yhat) sqrt(mean((y - yhat)^2))
   }
   obs   <- stat_fun(X_res, Y_res)
   perms <- replicate(B, stat_fun(X_res, permuted()))
-  list(obs = obs, perms = perms, p = (1 + sum(perms >= obs)) / (B + 1))
+  list(obs = obs, perms = perms, p = (1 + sum(perms >= obs)) / (B + 1),
+       p_par = .right_tail_p(obs, perms))
 }
 
 # ---- weighted generalised covariance measure (multivariate, fixed weights) --------
@@ -216,6 +233,7 @@ rmsep <- function(y, yhat) sqrt(mean((y - yhat)^2))
     S_sim[done + seq_len(b)] <- mx
     done <- done + b
   }
+  # no parametric p-value: p already comes from the Gaussian approximation
   list(obs = S_obs, perms = S_sim, p = (1 + sum(S_sim >= S_obs)) / (B + 1),
-       n_stats = ncol(W) * nrow(pairs))
+       p_par = NA_real_, n_stats = ncol(W) * nrow(pairs))
 }

@@ -59,6 +59,18 @@
 #' `ncol(X) * ncol(Y) * (k0 * ncol(Z) + 1)` statistics; time and memory grow with
 #' that number times n.
 #'
+#' **P-values.** For `"rv"`, `"cc1"` and `"dcor"` two p-values are computed from the
+#' same `B` permutation statistics, and large statistics speak against the null. The
+#' empirical one is `(#{T* >= T_obs} + 1) / (B + 1)`. The parametric one is the right
+#' tail of a Pearson type III distribution (a shifted gamma) with the mean, sd and
+#' skewness of the permutation statistics (without positive skewness: a normal
+#' distribution). A normal fit, as used by [Block.CCI.test()], is not used here: this
+#' null distribution is skewed to the right, and a normal fit gives p-values that are
+#' too small. The parametric p-value is not limited to multiples of `1 / (B + 1)`,
+#' but it is an approximation, and far out in the tail (very small p-values) its
+#' accuracy rests on the fitted shape. `"wgcm"` has one p-value only (from its
+#' Gaussian approximation).
+#'
 #' With `resid = "cv"` (recommended) every row's residual comes from a model that
 #' did not use that row: the rows are split into `nfolds` folds, shared by the X and
 #' the Y regression. For PLS and ROSA the number of components is chosen by the CV
@@ -109,8 +121,13 @@
 #'   or `num.threads` (1; `NULL` uses all cores). A learner function receives the
 #'   list as `opts$args`.
 #' @param seed optional random seed.
+#' @param pvalue which p-value is reported as `p.value`: `"empirical"` (default) or
+#'   `"parametric"` (see Details; not available for `stat = "wgcm"`). Both are stored
+#'   in the result.
 #' @return an object of class `c("BlockResid", "htest")` with the statistic, the
-#'   p-value, the regression `regression`, the complexity of the X and the Y
+#'   p-value in `p.value` (chosen with `pvalue`), both p-values in `p.empirical` and
+#'   `p.parametric` (for `"wgcm"`: `p.empirical` is the p-value from the Gaussian
+#'   draws and `p.parametric` is `NA`), the regression `regression`, the complexity of the X and the Y
 #'   regression in `complexity` (components, rounds or trees), the mean number of
 #'   PLS components of the linear step in `linear_ncomp` (XGB and RF with
 #'   `linear_first = TRUE`, otherwise `NA`), the permutation statistics (for
@@ -121,6 +138,7 @@
 #' data <- sim_1(n = 500, p = 4)
 #' Block.resid.test(Y ~ X | Z1 + Z2, data)                      # H0 true, PLS
 #' Block.resid.test(Y ~ X | Z1, data, method = "ROSA")          # H0 false
+#' Block.resid.test(Y ~ X | Z1, data, B = 199, pvalue = "parametric")
 #' Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", B = 199,   # PLS, then RF
 #'                  method_args = list(num.trees = 1000, num.threads = NULL))
 #' Block.resid.test(Y ~ X | Z1 + Z2, data, method = "XGB", B = 199,
@@ -142,8 +160,13 @@ Block.resid.test <- function(formula, data, method = "PLS",
                              B = 999, k_perm = 5, nfolds = 10,
                              ncomp = "auto", max_ncomp = 10, scale = TRUE,
                              linear_first = TRUE, k0 = 7, method_args = list(), seed = NA,
-                             reduce = c("none", "pca", "pls"), reduce_ncomp = "auto") {
+                             reduce = c("none", "pca", "pls"), reduce_ncomp = "auto",
+                             pvalue = c("empirical", "parametric")) {
   stat  <- match.arg(stat)
+  pvalue <- match.arg(pvalue)
+  if (stat == "wgcm" && pvalue == "parametric")
+    stop("pvalue = \"parametric\" is not available for stat = \"wgcm\": ",
+         "its p-value already comes from a Gaussian approximation")
   reduce <- match.arg(reduce)
   resid <- match.arg(resid)
   perm  <- match.arg(perm)
@@ -173,6 +196,7 @@ Block.resid.test <- function(formula, data, method = "PLS",
   Z <- do.call(cbind, cc$V)
   res <- .resid_perm_test(rx$res, ry$res, Z, stat, perm, B, k_perm, k0 = k0)
   calib <- if (stat == "wgcm") "Gaussian approximation" else paste(perm, "permutation")
+  if (pvalue == "parametric") calib <- paste0(calib, ", parametric p-value")
 
   two_step <- linear_first && method_name %in% c("XGB", "RF", "KNN")
   reg_label <- if (two_step) paste0("PLS + ", method_name) else method_name
@@ -180,7 +204,10 @@ Block.resid.test <- function(formula, data, method = "PLS",
   if (reduce == "pls") reg_label <- paste0(reg_label, " on PLS scores of Z")
   structure(list(
     statistic   = stats::setNames(res$obs, toupper(stat)),
-    p.value     = res$p,
+    p.value     = if (pvalue == "parametric") res$p_par else res$p,
+    pvalue      = pvalue,
+    p.empirical = res$p,
+    p.parametric = res$p_par,
     method      = sprintf("Block residual test for Y _||_ X | Z (%s regression, %s, %s, %s residuals)",
                           reg_label, stat, calib, resid),
     data.name   = paste(deparse(formula), collapse = ""),

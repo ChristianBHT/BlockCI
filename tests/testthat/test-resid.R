@@ -95,6 +95,42 @@ test_that("Block.resid.test: permutation statistics, print method and argument c
   expect_error(Block.resid.test(Y ~ X | Z1, d, nfolds = 1), "nfolds")
 })
 
+test_that(".right_tail_p is accurate for a skewed null and handles edge cases", {
+  set.seed(14)
+  T0 <- rgamma(2e5, shape = 3, scale = 2) + 1          # a shifted gamma is Pearson III
+  for (q in c(0.9, 0.95, 0.99))
+    expect_equal(.right_tail_p(qgamma(q, shape = 3, scale = 2) + 1, T0), 1 - q,
+                 tolerance = 0.05)
+  S <- c(-1, 1) %o% seq_len(50)                        # symmetric: normal fallback
+  expect_equal(.right_tail_p(10, as.vector(S)),
+               pnorm(10, 0, sd(as.vector(S)), lower.tail = FALSE))
+  expect_true(is.na(.right_tail_p(2, c(1, 1, 1))))     # zero spread
+})
+
+test_that("Block.resid.test returns the empirical and the parametric p-value", {
+  set.seed(15)
+  d <- sim_1(n = 150, p = 2)
+  r  <- Block.resid.test(Y ~ X | Z1 + Z2, d, B = 99, seed = 1)
+  rp <- Block.resid.test(Y ~ X | Z1 + Z2, d, B = 99, seed = 1, pvalue = "parametric")
+  expect_equal(r$pvalue, "empirical")
+  expect_equal(r$p.value, r$p.empirical)
+  expect_equal(r$p.empirical, (1 + sum(r$perm_stats >= r$statistic)) / 100)
+  expect_equal(rp$p.value, rp$p.parametric)
+  # the choice changes only which p-value is reported
+  expect_equal(c(rp$p.empirical, rp$p.parametric), c(r$p.empirical, r$p.parametric))
+  expect_equal(r$p.parametric, .right_tail_p(r$statistic[[1]], r$perm_stats))
+  expect_output(print(rp), "parametric p-value")
+  for (a in list(list(stat = "cc1"), list(perm = "simple"))) {
+    x <- do.call(Block.resid.test, c(list(Y ~ X | Z1 + Z2, d, B = 49, seed = 1), a))
+    expect_true(x$p.parametric >= 0 && x$p.parametric <= 1)
+  }
+  w <- Block.resid.test(Y ~ X | Z1 + Z2, d, stat = "wgcm", B = 49, seed = 1)
+  expect_true(is.na(w$p.parametric))
+  expect_equal(w$p.value, w$p.empirical)
+  expect_error(Block.resid.test(Y ~ X | Z1, d, stat = "wgcm", pvalue = "parametric"),
+               "not available")
+})
+
 test_that("Block.resid.test runs with KNN, with and without the linear step", {
   skip_if_not_installed("FNN")
   d <- sim_1(n = 200, p = 3)

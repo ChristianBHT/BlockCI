@@ -22,7 +22,8 @@ Block.resid.test(
   method_args = list(),
   seed = NA,
   reduce = c("none", "pca", "pls"),
-  reduce_ncomp = "auto"
+  reduce_ncomp = "auto",
+  pvalue = c("empirical", "parametric")
 )
 }
 \arguments{
@@ -87,10 +88,16 @@ list as \code{opts$args}.}
 keeps the components above the Marchenko-Pastur noise edge (see
 \code{\link[=cci_test_gen]{cci_test_gen()}}); for \code{"pls"}, the number of components of the linear step
 (chosen by CV with \code{ncomp = "auto"}).}
+
+\item{pvalue}{which p-value is reported as \code{p.value}: \code{"empirical"} (default) or
+\code{"parametric"} (see Details; not available for \code{stat = "wgcm"}). Both are stored
+in the result.}
 }
 \value{
 an object of class \code{c("BlockResid", "htest")} with the statistic, the
-p-value, the regression \code{regression}, the complexity of the X and the Y
+p-value in \code{p.value} (chosen with \code{pvalue}), both p-values in \code{p.empirical} and
+\code{p.parametric} (for \code{"wgcm"}: \code{p.empirical} is the p-value from the Gaussian
+draws and \code{p.parametric} is \code{NA}), the regression \code{regression}, the complexity of the X and the Y
 regression in \code{complexity} (components, rounds or trees), the mean number of
 PLS components of the linear step in \code{linear_ncomp} (XGB and RF with
 \code{linear_first = TRUE}, otherwise \code{NA}), the permutation statistics (for
@@ -161,6 +168,18 @@ observed maximum. \code{perm} and \code{k_perm} are not used. There are
 \code{ncol(X) * ncol(Y) * (k0 * ncol(Z) + 1)} statistics; time and memory grow with
 that number times n.
 
+\strong{P-values.} For \code{"rv"}, \code{"cc1"} and \code{"dcor"} two p-values are computed from the
+same \code{B} permutation statistics, and large statistics speak against the null. The
+empirical one is \verb{(#\{T* >= T_obs\} + 1) / (B + 1)}. The parametric one is the right
+tail of a Pearson type III distribution (a shifted gamma) with the mean, sd and
+skewness of the permutation statistics (without positive skewness: a normal
+distribution). A normal fit, as used by \code{\link[=Block.CCI.test]{Block.CCI.test()}}, is not used here: this
+null distribution is skewed to the right, and a normal fit gives p-values that are
+too small. The parametric p-value is not limited to multiples of \code{1 / (B + 1)},
+but it is an approximation, and far out in the tail (very small p-values) its
+accuracy rests on the fitted shape. \code{"wgcm"} has one p-value only (from its
+Gaussian approximation).
+
 With \code{resid = "cv"} (recommended) every row's residual comes from a model that
 did not use that row: the rows are split into \code{nfolds} folds, shared by the X and
 the Y regression. For PLS and ROSA the number of components is chosen by the CV
@@ -171,6 +190,7 @@ error over the same folds (\code{ncomp = "auto"}).
 data <- sim_1(n = 500, p = 4)
 Block.resid.test(Y ~ X | Z1 + Z2, data)                      # H0 true, PLS
 Block.resid.test(Y ~ X | Z1, data, method = "ROSA")          # H0 false
+Block.resid.test(Y ~ X | Z1, data, B = 199, pvalue = "parametric")
 Block.resid.test(Y ~ X | Z1 + Z2, data, method = "RF", B = 199,   # PLS, then RF
                  method_args = list(num.trees = 1000, num.threads = NULL))
 Block.resid.test(Y ~ X | Z1 + Z2, data, method = "XGB", B = 199,
