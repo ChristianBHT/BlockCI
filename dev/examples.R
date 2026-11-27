@@ -96,8 +96,8 @@ T0
 # ---- 3. Pick a scenario -----------------------------------------------------
 # Change the arguments and rerun the tests below.
 
-d <- scenario(design = "linear", noise = "gaussian", effect = 0, n = 500, seed = 1)
-str(d)
+# Gaussian
+d <- scenario(design = "linear", noise = "gaussian", effect = 0, n = 1000, seed = 1)
 
 compare(d, list(
   "CCI PLS"             = function(d) cci(d),
@@ -115,6 +115,7 @@ methods_cci <- list(
   SOPLS = function(d) cci(d, method = "SOPLS"),     # one component per Z block by default
   ROSA  = function(d) cci(d, method = "ROSA")
 )
+
 if (has("FNN"))
   methods_cci$KNN <- function(d) cci(d, method = "KNN")
 if (run_slow && has("grf"))
