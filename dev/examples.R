@@ -96,7 +96,7 @@ T0
 # ---- 3. Pick a scenario -----------------------------------------------------
 # Change the arguments and rerun the tests below.
 
-d <- scenario(design = "linear", noise = "gaussian", effect = 0, n = 500, seed = 1)
+d <- scenario(design = "linear", noise = "gaussian", effect = 0, n = 5000, seed = 1)
 str(d)
 
 compare(d, list(

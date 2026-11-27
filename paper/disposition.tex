@@ -346,152 +346,543 @@ Figure 1A). Both A B E F C D and E F A B C D are topological orders.}
   error ($\approx 0.022$ at 100 data sets), p-value uniformity (KS), run time.
 \end{itemize}
 
-\subsection*{4.2 Results so far}
+\subsection*{4.2 Simulation results}
 
-Bold entries are more than two Monte Carlo standard errors above the nominal 0.05
-(rate $\ge 0.10$ with 100 data sets). Linear design unless stated.
+Bold type I error rates are more than two Monte Carlo standard errors above the
+nominal 0.05 (with 100 data sets: rate $\ge 0.10$). The Monte Carlo standard error of
+a rate near 0.05 is about 0.022 with 100 data sets, 0.018 with 150 and 0.007 with
+1000. Table~\ref{tab:overview} summarises the main study; the following tables give
+the results per noise type.
+
+\textbf{Code version of the main study} (Tables~\ref{tab:overview}--\ref{tab:time};
+runs of 17--26 November 2026). The runs were made before the package changes of
+26 November: the CCI tests used a training fraction of 0.75 (now 0.5); conditional
+permutation, also the default of the residual tests with RV, was within $k$-means
+groups of $Z$ (now local nearest-neighbour permutation); the rotation did not draw
+uniformly random rotations (now corrected; the effect on the rates has not been
+measured); and data sets were not paired between runs with different method sets.
+\todo{rerun the main study with the current code before reporting final numbers.}
 
 \begin{table}[H]
-\caption{Type I error of the CCI tests (linear design, $H_0$ true, $\alpha=0.05$,
-100 data sets per cell).}
+\caption{Summary of the main study over the eight noise types. Type I error: median (largest). Power ($\beta=0.5$): median; it is not a valid measure of power where the type I error is inflated. $^{a}$SO-PLS: Gaussian, $t_3$, Laplace and skewed noise only (three of these for power at $n=1000$).}
+\label{tab:overview}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccccc}
+\toprule
+ & \multicolumn{3}{c}{Type I error} & \multicolumn{3}{c}{Power} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Test & 200 & 500 & 1000 & 200 & 500 & 1000 \\
+\midrule
+\multicolumn{7}{l}{\emph{Linear design}} \\
+CCI, PLS & 0.03 (0.05) & 0.04 (0.08) & 0.04 (0.09) & 0.98 & 1.00 & 1.00 \\
+CCI, SO-PLS$^{a}$ & 0.02 (0.05) & 0.06 (0.07) & 0.04 (0.07) & 0.42 & 0.52 & 0.64 \\
+CCI, ROSA & 0.04 (0.08) & 0.03 (0.13) & 0.05 (0.08) & 0.94 & 1.00 & 1.00 \\
+CCI, RF & 0.05 (0.08) & 0.06 (0.11) & 0.07 (0.17) & 0.56 & 0.84 & 0.96 \\
+Residual, PLS (RV) & 0.08 (0.42) & 0.07 (0.51) & 0.06 (0.55) & 1.00 & 1.00 & 1.00 \\
+Residual, PLS + RF (RV) & 0.10 (0.41) & 0.06 (0.53) & 0.06 (0.56) & 1.00 & 1.00 & 1.00 \\
+Residual, PLS + RF (wGCM) & 0.03 (0.07) & 0.03 (0.07) & 0.04 (0.08) & 1.00 & 1.00 & 1.00 \\
+\addlinespace
+\multicolumn{7}{l}{\emph{Nonlinear design}} \\
+CCI, RF & 0.06 (0.11) & 0.09 (0.15) & 0.14 (0.25) & 0.83 & 0.96 & 0.99 \\
+Residual, PLS + RF (RV) & 0.70 (0.82) & 0.92 (0.95) & 0.99 (1.00) & 1.00 & 1.00 & 1.00 \\
+Residual, PLS + RF (wGCM) & 0.18 (0.30) & 0.49 (0.53) & 0.73 (0.85) & 1.00 & 1.00 & 1.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\par\medskip\noindent\textbf{Linear design.}\par\nopagebreak
+
+\begin{table}[H]
+\caption{Type I error of the CCI tests, linear design ($H_0$ true; 100 data sets per cell; -- not run).}
 \label{tab:cci-type1}
-\small
-\begin{tabular}{llrrrr}
+\footnotesize
+\begin{tabular}{lrrrrr}
 \toprule
 Noise & $n$ & PLS & SO-PLS & ROSA & RF \\
 \midrule
-Gaussian & 200  & 0.05 & 0.00 & 0.06 & 0.04 \\
-         & 500  & 0.04 & 0.07 & 0.03 & 0.06 \\
-         & 1000 & 0.02 & 0.02 & 0.06 & 0.08 \\
-$t_3$    & 200  & 0.04 & 0.01 & 0.03 & 0.02 \\
-         & 500  & 0.06 & 0.07 & 0.02 & 0.07 \\
-         & 1000 & 0.04 & 0.05 & 0.02 & \hi{0.10} \\
-Laplace  & 200  & 0.03 & 0.04 & 0.03 & 0.08 \\
-         & 500  & 0.01 & 0.03 & 0.02 & 0.04 \\
-         & 1000 & 0.06 & 0.07 & 0.03 & 0.04 \\
-Skewed   & 200  & 0.04 & 0.05 & 0.03 & 0.05 \\
-         & 500  & 0.01 & 0.06 & 0.03 & \hi{0.11} \\
-         & 1000 & 0.07 & 0.04 & 0.08 & \hi{0.17} \\
+Gaussian & 200 & 0.05 & 0.00 & 0.06 & 0.04 \\
+ & 500 & 0.04 & 0.07 & 0.03 & 0.06 \\
+ & 1000 & 0.02 & 0.02 & 0.06 & 0.08 \\
+\addlinespace[1pt]
+$t_3$ & 200 & 0.04 & 0.01 & 0.03 & 0.02 \\
+ & 500 & 0.06 & 0.07 & 0.02 & 0.07 \\
+ & 1000 & 0.04 & 0.05 & 0.02 & \hi{0.10} \\
+\addlinespace[1pt]
+Laplace & 200 & 0.03 & 0.04 & 0.03 & 0.08 \\
+ & 500 & 0.01 & 0.03 & 0.02 & 0.04 \\
+ & 1000 & 0.06 & 0.07 & 0.03 & 0.04 \\
+\addlinespace[1pt]
+Skewed & 200 & 0.04 & 0.05 & 0.03 & 0.05 \\
+ & 500 & 0.01 & 0.06 & 0.03 & \hi{0.11} \\
+ & 1000 & 0.07 & 0.04 & 0.08 & \hi{0.17} \\
+\addlinespace[1pt]
+Poisson & 200 & 0.03 & -- & 0.04 & 0.06 \\
+ & 500 & 0.02 & -- & 0.03 & 0.05 \\
+ & 1000 & 0.09 & -- & 0.02 & 0.04 \\
+\addlinespace[1pt]
+Outliers & 200 & 0.03 & -- & 0.02 & 0.05 \\
+ & 500 & 0.05 & -- & 0.02 & 0.09 \\
+ & 1000 & 0.03 & -- & 0.08 & \hi{0.13} \\
+\addlinespace[1pt]
+Heterosk. & 200 & 0.03 & -- & 0.08 & 0.07 \\
+ & 500 & 0.08 & -- & \hi{0.13} & \hi{0.10} \\
+ & 1000 & 0.04 & -- & 0.05 & 0.02 \\
+\addlinespace[1pt]
+Correlated & 200 & 0.03 & -- & 0.04 & 0.01 \\
+ & 500 & 0.04 & -- & 0.06 & 0.04 \\
+ & 1000 & 0.00 & -- & 0.05 & 0.06 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[H]
-\caption{Power of the CCI tests (linear design, $\beta=0.5$, 100 data sets per cell).}
+\caption{Power of the CCI tests, linear design ($\beta=0.5$; 100 data sets per cell; -- not run).}
 \label{tab:cci-power}
-\small
-\begin{tabular}{llrrrr}
+\footnotesize
+\begin{tabular}{lrrrrr}
 \toprule
 Noise & $n$ & PLS & SO-PLS & ROSA & RF \\
 \midrule
-Gaussian & 200  & 1.00 & 0.37 & 0.94 & 0.46 \\
-         & 500  & 1.00 & 0.51 & 1.00 & 0.84 \\
-         & 1000 & 1.00 & 0.66 & 1.00 & 0.98 \\
-$t_3$    & 200  & 0.99 & 0.38 & 0.98 & 0.64 \\
-         & 500  & 1.00 & 0.48 & 1.00 & 0.85 \\
-         & 1000 & 1.00 & 0.60 & 1.00 & 0.94 \\
-Laplace  & 200  & 0.97 & 0.47 & 0.99 & 0.56 \\
-         & 500  & 1.00 & 0.57 & 1.00 & 0.83 \\
-         & 1000 & 1.00 & 0.64 & 1.00 & 0.99 \\
-Skewed   & 200  & 1.00 & 0.49 & 0.94 & 0.60 \\
-         & 500  & 1.00 & 0.54 & 1.00 & 0.90 \\
-         & 1000 &   &   &   & \\ 
+Gaussian & 200 & 1.00 & 0.37 & 0.94 & 0.46 \\
+ & 500 & 1.00 & 0.51 & 1.00 & 0.84 \\
+ & 1000 & 1.00 & 0.66 & 1.00 & 0.98 \\
+\addlinespace[1pt]
+$t_3$ & 200 & 0.99 & 0.38 & 0.98 & 0.64 \\
+ & 500 & 1.00 & 0.48 & 1.00 & 0.85 \\
+ & 1000 & 1.00 & 0.60 & 1.00 & 0.94 \\
+\addlinespace[1pt]
+Laplace & 200 & 0.97 & 0.47 & 0.99 & 0.56 \\
+ & 500 & 1.00 & 0.57 & 1.00 & 0.83 \\
+ & 1000 & 1.00 & 0.64 & 1.00 & 0.99 \\
+\addlinespace[1pt]
+Skewed & 200 & 1.00 & 0.49 & 0.94 & 0.60 \\
+ & 500 & 1.00 & 0.54 & 1.00 & 0.90 \\
+ & 1000 & 1.00 & -- & 1.00 & 0.91 \\
+\addlinespace[1pt]
+Poisson & 200 & 0.99 & -- & 0.97 & 0.47 \\
+ & 500 & 1.00 & -- & 1.00 & 0.88 \\
+ & 1000 & 1.00 & -- & 1.00 & 0.92 \\
+\addlinespace[1pt]
+Outliers & 200 & 0.97 & -- & 0.94 & 0.56 \\
+ & 500 & 1.00 & -- & 1.00 & 0.83 \\
+ & 1000 & 1.00 & -- & 1.00 & 0.97 \\
+\addlinespace[1pt]
+Heterosk. & 200 & 0.91 & -- & 0.84 & 0.41 \\
+ & 500 & 1.00 & -- & 0.98 & 0.81 \\
+ & 1000 & 1.00 & -- & 1.00 & 0.95 \\
+\addlinespace[1pt]
+Correlated & 200 & 0.97 & -- & 0.94 & 0.60 \\
+ & 500 & 1.00 & -- & 1.00 & 0.91 \\
+ & 1000 & 1.00 & -- & 1.00 & 1.00 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[H]
-\caption{Type I error of the residual tests (linear design, $H_0$ true, $\alpha=0.05$,
-100 data sets per cell). RV with conditional permutation; wGCM = weighted GCM.}
+\caption{Type I error of the residual tests, linear design ($H_0$ true; 100 data sets per cell). RV with the earlier group-based conditional permutation; wGCM = weighted GCM.}
 \label{tab:res-type1}
-\small
-\begin{tabular}{llrrr}
+\footnotesize
+\begin{tabular}{lrrrr}
 \toprule
 Noise & $n$ & PLS (RV) & PLS + RF (RV) & PLS + RF (wGCM) \\
 \midrule
-Gaussian    & 200  & 0.09 & \hi{0.11} & 0.05 \\
-            & 500  & 0.09 & 0.06 & 0.05 \\
-            & 1000 & 0.02 & 0.02 & 0.07 \\
-$t_3$       & 200  & 0.09 & 0.03 & 0.02 \\
-            & 500  & 0.00 & 0.03 & 0.03 \\
-            & 1000 & 0.03 & 0.04 & 0.01 \\
-Laplace     & 200  & 0.07 & 0.06 & 0.01 \\
-            & 500  & \hi{0.10} & 0.08 & 0.07 \\
-            & 1000 & 0.06 & 0.07 & 0.04 \\
-Skewed      & 200  & 0.09 & \hi{0.12} & 0.04 \\
-            & 500  & 0.05 & 0.06 & 0.03 \\
-            & 1000 & 0.08 & \hi{0.10} & 0.05 \\
-Poisson     & 200  & 0.05 & 0.04 & 0.04 \\
-            & 500  & 0.08 & \hi{0.13} & 0.03 \\
-            & 1000 & 0.03 & 0.03 & 0.04 \\
-Outliers    & 200  & 0.08 & \hi{0.12} & 0.02 \\
-            & 500  & 0.06 & 0.06 & 0.01 \\
-            & 1000 & 0.08 & 0.08 & 0.05 \\
-Heterosk.   & 200  & \hi{0.42} & \hi{0.41} & 0.01 \\
-            & 500  & \hi{0.51} & \hi{0.53} & 0.02 \\
-            & 1000 & \hi{0.55} & \hi{0.56} & 0.03 \\
-Correlated  & 200  & 0.05 & 0.08 & 0.07 \\
-            & 500  & 0.05 & 0.06 & 0.03 \\
-            & 1000 & 0.06 & 0.05 & 0.08 \\
+Gaussian & 200 & 0.09 & \hi{0.11} & 0.05 \\
+ & 500 & 0.09 & 0.06 & 0.05 \\
+ & 1000 & 0.02 & 0.02 & 0.07 \\
+\addlinespace[1pt]
+$t_3$ & 200 & 0.09 & 0.03 & 0.02 \\
+ & 500 & 0.00 & 0.03 & 0.03 \\
+ & 1000 & 0.03 & 0.04 & 0.01 \\
+\addlinespace[1pt]
+Laplace & 200 & 0.07 & 0.06 & 0.01 \\
+ & 500 & \hi{0.10} & 0.08 & 0.07 \\
+ & 1000 & 0.06 & 0.07 & 0.04 \\
+\addlinespace[1pt]
+Skewed & 200 & 0.09 & \hi{0.12} & 0.04 \\
+ & 500 & 0.05 & 0.06 & 0.03 \\
+ & 1000 & 0.08 & \hi{0.10} & 0.05 \\
+\addlinespace[1pt]
+Poisson & 200 & 0.05 & 0.04 & 0.04 \\
+ & 500 & 0.08 & \hi{0.13} & 0.03 \\
+ & 1000 & 0.03 & 0.03 & 0.04 \\
+\addlinespace[1pt]
+Outliers & 200 & 0.08 & \hi{0.12} & 0.02 \\
+ & 500 & 0.06 & 0.06 & 0.01 \\
+ & 1000 & 0.08 & 0.08 & 0.05 \\
+\addlinespace[1pt]
+Heterosk. & 200 & \hi{0.42} & \hi{0.41} & 0.01 \\
+ & 500 & \hi{0.51} & \hi{0.53} & 0.02 \\
+ & 1000 & \hi{0.55} & \hi{0.56} & 0.03 \\
+\addlinespace[1pt]
+Correlated & 200 & 0.05 & 0.08 & 0.07 \\
+ & 500 & 0.05 & 0.06 & 0.03 \\
+ & 1000 & 0.06 & 0.05 & 0.08 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \textbf{Power of the residual tests} ($\beta=0.5$, linear design): 1.00 in every cell
-for PLS (RV) and PLS + RF (RV); PLS + RF (wGCM) 1.00 except $n=200$ with outliers
-(0.90), $t_3$ (0.97) and heteroskedastic noise (0.98). The effect is too large to
-separate the residual tests. \todo{rerun power with $\beta\in\{0.1,0.2\}$.}
+for PLS (RV) and PLS + RF (RV); PLS + RF (wGCM) at least 0.99 except at $n=200$ with
+outliers (0.90), $t_3$ (0.97) and heteroskedastic noise (0.98). The effect is too large
+to separate these tests.
 
+\par\medskip\noindent\textbf{Nonlinear design.}\par\nopagebreak
+
+The residual test with PLS (RV) was run with Gaussian noise only: type I error 0.73,
+0.99 and 1.00 at $n=200$, 500 and 1000. The nonlinear Gaussian runs of PLS + RF were
+made twice; the tables use the run with the same set of methods as for the other noise
+types.
 
 \begin{table}[H]
-\caption{Median run time per test in seconds (linear design; RF uses all cores).}
+\caption{Type I error, nonlinear design ($H_0$ true; 100 data sets per cell).}
+\label{tab:nonlin-type1}
+\footnotesize
+\begin{tabular}{lrrrr}
+\toprule
+Noise & $n$ & CCI, RF & PLS + RF (RV) & PLS + RF (wGCM) \\
+\midrule
+Gaussian & 200 & 0.05 & \hi{0.71} & \hi{0.17} \\
+ & 500 & \hi{0.10} & \hi{0.94} & \hi{0.49} \\
+ & 1000 & \hi{0.10} & \hi{0.99} & \hi{0.69} \\
+\addlinespace[1pt]
+$t_3$ & 200 & 0.07 & \hi{0.57} & \hi{0.20} \\
+ & 500 & \hi{0.10} & \hi{0.90} & \hi{0.47} \\
+ & 1000 & \hi{0.16} & \hi{0.99} & \hi{0.81} \\
+\addlinespace[1pt]
+Laplace & 200 & 0.09 & \hi{0.70} & \hi{0.16} \\
+ & 500 & 0.07 & \hi{0.94} & \hi{0.53} \\
+ & 1000 & \hi{0.17} & \hi{1.00} & \hi{0.72} \\
+\addlinespace[1pt]
+Skewed & 200 & 0.06 & \hi{0.74} & \hi{0.30} \\
+ & 500 & \hi{0.15} & \hi{0.91} & \hi{0.42} \\
+ & 1000 & \hi{0.13} & \hi{0.96} & \hi{0.73} \\
+\addlinespace[1pt]
+Poisson & 200 & 0.03 & \hi{0.74} & \hi{0.18} \\
+ & 500 & 0.09 & \hi{0.95} & \hi{0.53} \\
+ & 1000 & \hi{0.19} & \hi{0.99} & \hi{0.73} \\
+\addlinespace[1pt]
+Outliers & 200 & \hi{0.11} & \hi{0.70} & \hi{0.18} \\
+ & 500 & 0.09 & \hi{0.92} & \hi{0.49} \\
+ & 1000 & \hi{0.25} & \hi{0.99} & \hi{0.85} \\
+\addlinespace[1pt]
+Heterosk. & 200 & 0.05 & \hi{0.82} & \hi{0.13} \\
+ & 500 & 0.05 & \hi{0.92} & \hi{0.28} \\
+ & 1000 & 0.08 & \hi{0.99} & \hi{0.45} \\
+\addlinespace[1pt]
+Correlated & 200 & 0.07 & \hi{0.61} & \hi{0.20} \\
+ & 500 & 0.05 & \hi{0.89} & \hi{0.50} \\
+ & 1000 & \hi{0.12} & \hi{0.98} & \hi{0.75} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\caption{Rejection rate under $\beta=0.5$, nonlinear design. For tests with inflated type I error (Table~\ref{tab:nonlin-type1}) this is not a valid measure of power.}
+\label{tab:nonlin-power}
+\footnotesize
+\begin{tabular}{lrrrr}
+\toprule
+Noise & $n$ & CCI, RF & PLS + RF (RV) & PLS + RF (wGCM) \\
+\midrule
+Gaussian & 200 & 0.86 & 1.00 & 1.00 \\
+ & 500 & 0.97 & 1.00 & 1.00 \\
+ & 1000 & 0.99 & 1.00 & 1.00 \\
+\addlinespace[1pt]
+$t_3$ & 200 & 0.81 & 1.00 & 1.00 \\
+ & 500 & 0.93 & 1.00 & 1.00 \\
+ & 1000 & 0.99 & 1.00 & 1.00 \\
+\addlinespace[1pt]
+Laplace & 200 & 0.77 & 1.00 & 1.00 \\
+ & 500 & 0.96 & 1.00 & 1.00 \\
+ & 1000 & 0.98 & 1.00 & 1.00 \\
+\addlinespace[1pt]
+Skewed & 200 & 0.84 & 1.00 & 1.00 \\
+ & 500 & 0.99 & 1.00 & 1.00 \\
+ & 1000 & 1.00 & 1.00 & 1.00 \\
+\addlinespace[1pt]
+Poisson & 200 & 0.82 & 1.00 & 1.00 \\
+ & 500 & 0.96 & 1.00 & 1.00 \\
+ & 1000 & 0.98 & 1.00 & 1.00 \\
+\addlinespace[1pt]
+Outliers & 200 & 0.84 & 1.00 & 0.99 \\
+ & 500 & 0.98 & 1.00 & 1.00 \\
+ & 1000 & 1.00 & 1.00 & 1.00 \\
+\addlinespace[1pt]
+Heterosk. & 200 & 0.77 & 1.00 & 1.00 \\
+ & 500 & 0.95 & 1.00 & 1.00 \\
+ & 1000 & 1.00 & 1.00 & 1.00 \\
+\addlinespace[1pt]
+Correlated & 200 & 0.85 & 1.00 & 1.00 \\
+ & 500 & 0.96 & 1.00 & 1.00 \\
+ & 1000 & 1.00 & 1.00 & 1.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\par\medskip\noindent\textbf{High-dimensional conditioning set.}\par\nopagebreak
+
+\begin{table}[H]
+\caption{High-dimensional conditioning set (200 columns in $Z$, three factors; Gaussian noise; 100 data sets per cell). Columns are $n$; -- not run.}
+\label{tab:highdim}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{l@{\hspace{6pt}}rrr@{\hspace{8pt}}rrr@{\hspace{8pt}}rrr}
+\toprule
+ & \multicolumn{3}{c}{Type I error} & \multicolumn{3}{c}{Power, $\beta=0.2$} & \multicolumn{3}{c}{Power, $\beta=0.5$} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
+Test & 200 & 500 & 1000 & 200 & 500 & 1000 & 200 & 500 & 1000 \\
+\midrule
+\multicolumn{10}{l}{\emph{Linear in the factor directions}} \\
+Res.\ PLS & 0.06 & 0.06 & 0.02 & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 \\
+Res.\ PLS, PCA & \hi{0.11} & 0.06 & 0.02 & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 \\
+CCI PLS & 0.06 & 0.04 & 0.03 & 0.07 & 0.11 & 0.29 & 0.03 & 0.59 & 0.99 \\
+CCI PLS, PCA & 0.04 & 0.05 & 0.01 & 0.04 & 0.57 & 0.93 & 0.04 & 1.00 & 1.00 \\
+\addlinespace
+\multicolumn{10}{l}{\emph{Nonlinear (limit case)}} \\
+CCI RF, PCA & 0.06 & \hi{0.13} & \hi{0.14} & -- & -- & -- & 0.03 & 0.61 & 0.91 \\
+CCI RF, PLS & 0.05 & \hi{0.11} & \hi{0.21} & -- & -- & -- & 0.01 & 0.78 & 0.97 \\
+Res.\ RF, PCA & \hi{1.00} & \hi{1.00} & \hi{1.00} & -- & -- & -- & 1.00 & 1.00 & 1.00 \\
+Res.\ RF, PLS & \hi{1.00} & \hi{1.00} & \hi{1.00} & -- & -- & -- & 1.00 & 1.00 & 1.00 \\
+Res.\ RF, PCA, wGCM & \hi{0.61} & \hi{0.88} & \hi{0.97} & -- & -- & -- & 1.00 & 1.00 & 1.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\par\medskip\noindent\textbf{Resampling of $X$ and run time.}\par\nopagebreak
+
+\begin{table}[H]
+\caption{Type I error of the CCI test by resampling of $X$ (100 data sets per cell). Rot.\ = rotation, perm.\ = permutation, cond.\ = the earlier permutation within $k$-means groups of $Z$. The rotation columns are from the main study, on other data sets (the comparison is not paired). Rotation with PLS was not run on the nonlinear design.}
+\label{tab:resampling}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrrr}
+\toprule
+ & & \multicolumn{3}{c}{PLS} & \multicolumn{3}{c}{RF} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}
+Noise & $n$ & Rot. & Perm. & Cond. & Rot. & Perm. & Cond. \\
+\midrule
+\multicolumn{8}{l}{\emph{Linear design}} \\
+Gaussian & 500 & 0.04 & 0.04 & 0.02 & 0.06 & \hi{0.29} & \hi{0.33} \\
+ & 1000 & 0.02 & 0.01 & 0.01 & 0.08 & \hi{0.42} & \hi{0.46} \\
+Heterosk. & 500 & 0.08 & 0.07 & 0.04 & \hi{0.10} & \hi{0.20} & \hi{0.22} \\
+ & 1000 & 0.04 & 0.08 & 0.07 & 0.02 & \hi{0.31} & \hi{0.36} \\
+Outliers & 500 & 0.05 & 0.02 & 0.04 & 0.09 & \hi{0.40} & \hi{0.37} \\
+ & 1000 & 0.03 & 0.00 & 0.03 & \hi{0.13} & \hi{0.60} & \hi{0.52} \\
+Skewed & 500 & 0.01 & 0.04 & 0.03 & \hi{0.11} & \hi{0.42} & \hi{0.43} \\
+ & 1000 & 0.07 & 0.04 & 0.03 & \hi{0.17} & \hi{0.54} & \hi{0.47} \\
+\addlinespace
+\multicolumn{8}{l}{\emph{Nonlinear design}} \\
+Heterosk. & 500 & -- & \hi{0.51} & \hi{0.44} & 0.05 & \hi{0.14} & \hi{0.14} \\
+ & 1000 & -- & \hi{0.80} & \hi{0.63} & 0.08 & \hi{0.10} & \hi{0.10} \\
+Outliers & 500 & -- & \hi{0.63} & \hi{0.51} & 0.09 & \hi{0.16} & \hi{0.16} \\
+ & 1000 & -- & \hi{0.85} & \hi{0.88} & \hi{0.25} & \hi{0.28} & \hi{0.17} \\
+Skewed & 500 & -- & \hi{0.56} & \hi{0.51} & \hi{0.15} & \hi{0.17} & \hi{0.19} \\
+ & 1000 & -- & \hi{0.87} & \hi{0.92} & \hi{0.13} & \hi{0.29} & \hi{0.30} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\caption{Run time per test in seconds, linear design: median over noise types and $\beta$ of the per-cell median times (RF uses all cores). Computer load differed between runs.}
 \label{tab:time}
 \small
 \begin{tabular}{lrrr}
 \toprule
 Test & $n=200$ & $n=500$ & $n=1000$ \\
 \midrule
-CCI, PLS          & 1.1  & 1.7  & 2.7  \\
-CCI, SO-PLS       & 3.6  & 11.9 & 45.9 \\
-CCI, ROSA         & 5.1  & 6.7  & 12.0 \\
-CCI, RF           & 13.8 & 20.4 & 28.9 \\
-Residual, PLS (RV)        & $<0.1$ & 0.1 & 0.2 \\
-Residual, PLS + RF (RV)   & 0.8  & 1.1  & 1.7  \\
-Residual, PLS + RF (wGCM) & 0.8  & 1.0  & 1.6  \\
+CCI, PLS & 1.1 & 1.7 & 2.7 \\
+CCI, SO-PLS & 3.6 & 12.0 & 45.5 \\
+CCI, ROSA & 5.2 & 6.7 & 12.2 \\
+CCI, RF & 13.9 & 20.4 & 28.8 \\
+Residual, PLS (RV) & $<0.1$ & $<0.1$ & 0.2 \\
+Residual, PLS + RF (RV) & 0.8 & 1.1 & 1.7 \\
+Residual, PLS + RF (wGCM) & 0.8 & 1.0 & 1.6 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection*{4.3 Main findings so far}
+\subsection*{4.3 Follow-up experiments on changes to the tests}
+
+These experiments (26 November 2026) used the corrected rotation. Their learners,
+training fractions and numbers of data sets are given with each table. They are
+smaller than the main study in scope: one sample size or a few, and few noise types.
+In these tables bold marks type I error rates more than two Monte Carlo standard
+errors above 0.05 for the number of data sets in the column or table.
+
+\par\medskip\noindent\textbf{Several observed statistics.}\par\nopagebreak
+
+\begin{table}[H]
+\caption{Averaging the p-values of \fn{npval} observed splits (CCI, PLS, linear Gaussian design, rotation, $R=99$, training fraction 0.75, rejection if $p<0.05$). The last row is the standard deviation of the p-value for the same data set over 40 random seeds.}
+\label{tab:npval}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrrr}
+\toprule
+ & & & \multicolumn{5}{c}{\fn{npval}} \\
+\cmidrule(lr){4-8}
+ & $n$ & Data sets & 1 & 2 & 5 & 10 & 20 \\
+\midrule
+Type I error & 200 & 2000 & 0.036 & 0.006 & 0.000 & 0.000 & 0.000 \\
+Power, $\beta=0.10$ & 200 & 600 & 0.110 & 0.022 & 0.002 & 0.000 & 0.000 \\
+Power, $\beta=0.15$ & 200 & 600 & 0.218 & 0.093 & 0.027 & 0.010 & 0.000 \\
+Type I error & 500 & 1000 & 0.042 & 0.014 & 0.001 & 0.000 & 0.000 \\
+Power, $\beta=0.10$ & 500 & 600 & 0.222 & 0.098 & 0.023 & 0.012 & 0.005 \\
+\addlinespace
+Mean sd of $p$ over 40 seeds ($\beta=0.10$) & 200 & 24 & 0.28 & 0.20 & 0.13 & 0.09 & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\caption{Rules for the observed statistic, all compared with the same single-split null draws (75\,\% training rows, rotation, $R=99$, rejection if $p<0.05$; RF with 200 trees).}
+\label{tab:crossfit4}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{PLS, linear, $n=200$} & \multicolumn{2}{c}{RF, $n=500$, $H_0$} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Observed side & $H_0$ & $\beta=0.1$ & Nonlinear & Lin., skewed \\
+Data sets & 1000 & 600 & 200 & 200 \\
+\midrule
+Single split & 0.043 & 0.118 & 0.080 & 0.080 \\
+4 random splits, mean $p$ & 0.002 & 0.005 & 0.005 & 0.005 \\
+4-fold, mean $p$ & 0.000 & 0.007 & 0.000 & 0.000 \\
+4-fold, mean $T$ & 0.002 & 0.010 & 0.005 & 0.000 \\
+4-fold, pooled & 0.002 & 0.012 & 0.005 & 0.000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\caption{Two-fold cross-fitting at $n=500$ (rotation, $R=99$, rejection if $p<0.05$; RF with 200 trees). All rules use the same data sets. Nonl.\ = nonlinear design; skew = linear design with skewed noise.}
+\label{tab:crossfit2}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrrr}
+\toprule
+ & \multicolumn{3}{c}{PLS, linear Gaussian} & \multicolumn{3}{c}{RF} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Rule & $H_0$ & $\beta=.10$ & $\beta=.15$ & Nonl.\ $H_0$ & Skew $H_0$ & Nonl.\ $.15$ \\
+Data sets & 1000 & 500 & 500 & 200 & 200 & 100 \\
+\midrule
+2-fold pooled vs.\ 50/50 single splits & 0.015 & 0.178 & 0.578 & 0.030 & 0.030 & 0.040 \\
+2-fold pooled vs.\ 75/25 single splits & 0.002 & 0.056 & 0.382 & 0.025 & 0.015 & 0.040 \\
+2-fold pooled vs.\ 2-fold null & 0.039 & 0.298 & 0.680 & \hi{0.130} & \hi{0.100} & 0.110 \\
+Single 50/50 split & 0.045 & 0.240 & 0.570 & 0.080 & 0.045 & 0.110 \\
+Single 75/25 split & 0.036 & 0.210 & 0.512 & 0.055 & \hi{0.085} & 0.130 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The option \fn{crossfit = TRUE} (2-fold observed statistic and 2-fold null draws) was
+afterwards compared with the default single split on new data sets (PLS, linear
+Gaussian, $n=500$): type I error 0.038 against 0.047 (600 data sets), and power at
+$\beta=0.1$ 0.235 against 0.208 (400 data sets). The gain in power was smaller than in
+Table~\ref{tab:crossfit2} (0.298 against 0.240).
+
+\par\medskip\noindent\textbf{Conditional permutation and KNN.}\par\nopagebreak
+
+\begin{table}[H]
+\caption{Earlier ($k$-means groups of 10) and new (local nearest-neighbour,
+$k_{\mathrm{perm}}=5$) conditional permutation on the same data sets (linear design,
+$H_0$ true, $n=500$, 300 data sets, rejection if $p<0.05$; CCI with PLS, $R=99$,
+training fraction 0.5; residual test PLS with RV, $B=199$, 5 folds). Power and the
+nonlinear design were not studied.}
+\label{tab:localperm}
+\footnotesize
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{Residual, PLS (RV)} & \multicolumn{2}{c}{CCI, PLS} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Noise & Groups & Local & Groups & Local \\
+\midrule
+Gaussian  & 0.070 & 0.070 & 0.010 & 0.023 \\
+Heterosk. & \hi{0.510} & \hi{0.247} & 0.023 & 0.020 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\caption{KNN regression, $k$ chosen by cross-validation ($n=500$, Gaussian noise, 150 data sets per cell, rejection if $p<0.05$; CCI: $R=99$, training fraction 0.5; residual tests: $B=199$, 5 folds). Times were measured while other jobs were running.}
+\label{tab:knn}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrr}
+\toprule
+ & \multicolumn{2}{c}{Type I error} & \multicolumn{2}{c}{$\beta=0.5$} & \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Test & Linear & Nonl. & Linear & Nonl. & Sec. \\
+\midrule
+CCI, rotation & 0.033 & \hi{0.167} & 0.980 & 1.000 & 2.4 \\
+CCI, local kNN permutation & \hi{0.173} & \hi{0.220} & 0.993 & 0.987 & 2.5 \\
+Residual, PLS + KNN (RV) & 0.033 & \hi{0.880} & 1.000 & 1.000 & 0.6 \\
+Residual, PLS + KNN (wGCM) & 0.067 & \hi{0.427} & 1.000 & 1.000 & 0.3 \\
+Residual, KNN alone (RV) & \hi{0.880} & \hi{0.847} & 1.000 & 1.000 & 0.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{4.4 Main findings so far}
 \begin{itemize}
-\item \textbf{CCI with linear learners} (PLS, SO-PLS, ROSA) holds the level in the
-  linear design for all noise types tested (0.00--0.08).
-\item \textbf{CCI with RF} holds the level at $n=200$ but becomes liberal as $n$
-  grows under non-Gaussian noise (skewed 0.11--0.17, $t_3$ 0.10 at $n=1000$),
-  consistent with rotation preserving only second moments (Section 3.5).
-\item \textbf{Residual tests with RV} are slightly liberal (up to 0.13) and break down
-  under heteroskedastic noise (0.41--0.56); the \textbf{weighted GCM} holds the level
-  in every linear cell (0.01--0.08), including heteroskedastic noise.
-\item \textbf{Power} ($\beta=0.5$): PLS and ROSA CCI close to 1; RF from about 0.5 at
-  $n=200$ to 0.94--0.99 at $n=1000$; SO-PLS low (0.37--0.66), likely because the
-  default uses one component per $V$ block.
-\item \textbf{Nonlinear design:} all tests liberal at $n=1000$ ($t_3$ noise); at
-  $n=200$ (Gaussian) the residual tests are close to the level, wGCM 0.05.
-\item \textbf{Cost:} residual tests are 10--100 times faster than the CCI tests.
+\item \textbf{CCI with linear learners, linear design.} In the main study PLS (largest
+  type I error 0.09) and SO-PLS (0.07, four noise types) stayed close to the level;
+  ROSA did too except in one cell (heteroskedastic noise, $n=500$: 0.13). At
+  $\beta=0.5$ PLS and ROSA had power close to 1, SO-PLS much less (0.37--0.66),
+  possibly because its default uses one component per $V$ block.
+\item \textbf{CCI with RF} had a median type I error of 0.05--0.07 in the linear design,
+  but up to 0.17 (skewed noise, $n=1000$). In the nonlinear design the median rose
+  from 0.06 at $n=200$ to 0.14 at $n=1000$ (largest 0.25).
+\item \textbf{Residual tests with RV} broke down under heteroskedastic noise in the
+  linear design (0.41--0.56). The \textbf{weighted GCM} stayed between 0.01 and 0.08 in
+  every linear cell, with high power at $\beta=0.5$.
+\item \textbf{Nonlinear design.} No test held the level in all cells. The residual tests
+  failed clearly (RV: median 0.70--0.99; wGCM: 0.18--0.73, increasing with $n$). CCI
+  with RF was closest to the level.
+\item \textbf{High-dimensional $Z$.} With linear relations the PLS residual test held
+  the level (apart from 0.11 with PCA scores at $n=200$) and had power 1.00 already
+  at $\beta=0.2$; CCI with PLS held the level but had almost no power at $n=200$. In
+  the nonlinear limit case the residual tests rejected most or all true nulls
+  (0.61--1.00); CCI with RF on reduced $Z$ was near the level only at $n=200$, where it
+  had almost no power.
+\item \textbf{Resampling.} With RF, permutation and the earlier conditional
+  permutation rejected far more true nulls than rotation in the linear design. In the
+  nonlinear design rotation was usually, but not always, as good or better, and
+  permutation with PLS failed (0.44--0.92).
+\item \textbf{Several observed statistics.} Averaging p-values over splits, and
+  cross-fitting only the observed statistic, made the tests much too conservative.
+  Cross-fitting the observed statistic and the null draws alike was calibrated and
+  more powerful with PLS on linear data (the size of the gain differed between two
+  runs), but too liberal with RF. The default remains one observed split.
+\item \textbf{New conditional permutation.} It halved the false rejections of the
+  residual RV test under heteroskedastic noise, which remain far too frequent (0.25).
+\item \textbf{KNN} with rotation (CCI) or after a PLS step (residual tests) was close to
+  the level in the linear design, but not in the nonlinear design (0.17--0.88). With
+  the local permutation CCI with KNN was liberal also in the linear design (0.17), and
+  KNN without the PLS step rejected 0.88 of true linear nulls.
+\item \textbf{Cost:} in the linear design the residual tests had median times below 2\,s
+  per test, the CCI tests between about 1 and 46\,s, depending on learner and $n$.
 \end{itemize}
 
-\subsection*{4.4 To do}
+\subsection*{4.5 To do}
 \begin{itemize}
-\item CCI tests for Poisson, outlier, heteroskedastic and correlated noise, and
-  skewed $n=1000$, $\beta=0.5$.
-\item Power curves with smaller effects ($\beta\in\{0.1,0.2,0.3\}$).
-\item Complete the nonlinear and high-dimensional designs with 100 data sets per cell.
+\item Rerun the main study with the current code (training fraction 0.5, corrected
+  rotation, paired data sets, local conditional permutation).
+\item Power curves with smaller effects ($\beta\in\{0.1,0.2,0.3\}$), comparing power
+  only between tests that hold the level.
+\item SO-PLS for the remaining noise types, and with CV-chosen components per $V$
+  block.
 \item Residual permutation instead of rotation for CCI with nonlinear learners.
-\item SO-PLS with CV-chosen components per $V$ block.
+\item Cross-fitted CCI test: power at equal computing cost, other noise types and
+  learners, and variation of the p-value between fold assignments.
+\item Local conditional permutation: power, nonlinear design, choice of
+  $k_{\mathrm{perm}}$.
 \item Competitors: weighted GCM package (\fn{weightedGCM}), GCM, KCI/RCIT,
   variable-level PC.
 \item p-value distributions (QQ plots), parametric vs.\ empirical p-values,
   sensitivity to $R$, number of trees and number of folds.
+\item Move the scripts of the follow-up experiments into the repository.
 \end{itemize}
 
 % =============================================================================
